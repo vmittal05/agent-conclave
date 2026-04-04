@@ -16,13 +16,43 @@ Pattern: **Primary Orchestrator → Research Sub-Agents (3) → Synthesizer Agen
 
 - **Orchestration**
   - **LangGraph StateGraph** defines the council workflow and state machine (sequential + parallel nodes).
-  - **Google Agent Development Kit (ADK)** defines LLM agents, tools, and coordinator/worker patterns.
-  - **LiteLLM proxy** is the multi-model gateway for Claude, GPT-5.2, and Gemini.
+  - **Google Agent Development Kit (ADK)**: Implemented via `vertexai.agent_engines.LangchainAgent` and `LanggraphAgent` templates.
+  - **LiteLLM proxy** is the multi-model gateway for Claude, GPT-5.2, and Gemini (can also use native Vertex AI).
 
 - **Agents**
-  - Primary Orchestrator Agent (LLM Coordinator, sequential step).
-  - ResearchAgentA (Claude), ResearchAgentB (GPT-5.2), ResearchAgentC (Gemini) – LLM worker agents running in parallel.
-  - SynthesizerAgent (LLM Analyzer, sequential step).
+  - ResearchAgentA (Claude), ResearchAgentB (GPT-5.2), ResearchAgentC (Gemini) – Parallel nodes in LangGraph.
+  - SynthesizerAgent – Sequential node after parallel join.
+  - Coordinator – Managed by the LangGraph orchestrator in `backend/graph.py`.
+
+---
+
+## 4. Agents and Responsibilities (Implementation Details)
+
+- **ResearchAgentA/B/C**:
+  - Defined as `LangchainAgent` in `backend/agents.py`.
+  - Tools: `search_web`, `search_gcp_docs`, `record_citation`.
+  - Each agent maintains independent state during the research phase.
+
+- **SynthesizerAgent**:
+  - Tools: `get_session_citations` (fetches all sources from DB).
+  - Logic: Clusters sources by `source_url` and provides consensus/unique insight analysis.
+
+---
+
+## 14. Implementation Progress (Status: April 2026)
+
+- [x] Phase 1: Foundation & Infrastructure (GCP & Local)
+- [x] Phase 2: Data Layer & DB MCP (Cloud SQL + Firestore)
+- [x] Phase 3: Search MCP Server Implementation
+- [x] Phase 4: Agent Development (Google ADK / Vertex AI)
+- [x] Phase 5: Orchestration Logic (LangGraph Parallel Flow)
+- [x] Phase 6: Backend API (FastAPI)
+- [ ] Phase 7: CLI Interface (Deferred)
+- [x] Phase 8: Deployment & Validation Manifests (Cloud Build + Docker)
+
+### Deviation Notes:
+- **ADK Implementation**: The project uses the `vertexai.agent_engines` namespace (v1.112+) which is the current production-ready implementation of the Google ADK patterns.
+- **Coordinator**: The coordinator logic was moved into the LangGraph state machine (`backend/graph.py`) for more robust state management compared to a standalone agent.
 
 - **MCP Tools**
   - Search MCP (web/academic search).
