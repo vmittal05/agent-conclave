@@ -31,7 +31,7 @@ class SessionResponse(BaseModel):
 # --- Orchestrator Interaction ---
 
 async def query_orchestrator(user_id: str, session_id: str, message: str) -> str:
-    """Query the Orchestrator agent microservice."""
+    """Query the Orchestrator agent microservice using SSE."""
     request_body = {
         "appName": "agent",
         "userId": user_id,
@@ -43,20 +43,25 @@ async def query_orchestrator(user_id: str, session_id: str, message: str) -> str
         "streaming": False
     }
     
+    final_text = ""
     async with httpx.AsyncClient(timeout=600.0) as client:
-        # We use /run (non-streaming) for simplicity in background task
-        response = await client.post(f"{ORCHESTRATOR_URL}/run", json=request_body)
-        response.raise_for_status()
-        
-        # ADK /run returns a list of events. The last one usually has the final content.
-        events = response.json()
-        final_text = ""
-        for event in events:
-            if "content" in event and event["content"]:
-                content = genai_types.Content.model_validate(event["content"])
-                for part in content.parts:
-                    if part.text:
-                        final_text += part.text
+        # Use SSE to match the working reference project pattern
+        async with client.stream("POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as response:
+            if response.status_code != 200:
+                error_body = await response.aread()
+                raise HTTPException(status_code=response.status_code, detail=f"Orchestrator error: {error_body.decode()}")
+            
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    try:
+                        event = json.loads(line[6:])
+                        if "content" in event and event["content"]:
+                            content = genai_types.Content.model_validate(event["content"])
+                            for part in content.parts:
+                                if part.text:
+                                    final_text += part.text
+                    except json.JSONDecodeError:
+                        continue
         return final_text.strip()
 
 async def run_council_orchestrator(session_id: str, question: str):
