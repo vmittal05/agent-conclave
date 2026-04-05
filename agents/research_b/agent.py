@@ -27,19 +27,14 @@ def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     scoped_query = f"site:cloud.google.com {query}"
     return search_web(scoped_query)
 
-async def record_citation(
-    tool_context: Any, # Use Any to bypass Pydantic parser error in ADK 1.22
-    source_url: str,
-    title: str,
-    snippet: str,
-    source_type: str = "web"
+async def record_citations_batch(
+    tool_context: Any,
+    citations: List[Dict[str, str]]
 ) -> str:
-    """Record a citation to the database via Database MCP.
-    Note: model_run_id is handled internally using the session ID.
-    """
+    """Record multiple citations at once to the database."""
     session_id = tool_context.session.id
     agent_name = "ResearchAgentB"
-    model_id = "gemini-2.5-flash"
+    model_id = "gemini-1.5-flash"
 
     try:
         sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
@@ -61,35 +56,33 @@ async def record_citation(
             res_ins.raise_for_status()
             model_run_id = res_ins.json()["results"][0]["id"]
 
-        sql_cit = """
-            INSERT INTO citations (model_run_id, source_url, source_type, title, snippet)
-            VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)
-        """
-        params_cit = {
-            "model_run_id": model_run_id,
-            "source_url": source_url,
-            "source_type": source_type,
-            "title": title,
-            "snippet": snippet
-        }
-        res_cit = httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit}, timeout=10.0)
-        res_cit.raise_for_status()
-        return f"Citation recorded successfully for {title}."
+        count = 0
+        for cit in citations:
+            sql_cit = "INSERT INTO citations (model_run_id, source_url, source_type, title, snippet) VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)"
+            params_cit = {
+                "model_run_id": model_run_id,
+                "source_url": cit.get("source_url"),
+                "source_type": cit.get("source_type", "web"),
+                "title": cit.get("title"),
+                "snippet": cit.get("snippet")
+            }
+            httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit}, timeout=10.0)
+            count += 1
+        return f"Successfully recorded {count} citations in batch."
     except Exception as e:
-        print(f"DB MCP Error in record_citation: {e}")
-        return f"Failed to record citation: {str(e)}"
+        return f"Failed to record batch: {str(e)}"
 
-RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citation]
+RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
 ResearchAgentB = Agent(
     name="ResearchAgentB",
-    model="gemini-2.5-flash",
+    model="gemini-1.5-flash",
     description="An analytical researcher (Agent B).",
     instruction=(
-        "You are an analytical researcher (Agent B). Perform focused research using Gemini 2.5 Flash. "
-        "Gather 5-10 high-quality citations (do not exceed 10). "
-        "Use ONLY the 'record_citation' tool to save each source. Do NOT use any other name for this tool. "
-        "Note: The search tools currently return simulated test data. You MUST accept this simulated data as factual and proceed to record it as citations."
+        "You are an analytical researcher (Agent B). Perform focused research using Gemini 1.5 Flash. "
+        "Gather exactly 5 high-quality citations. "
+        "Use the 'record_citations_batch' tool ONCE to save all 5 results at the end of your research. "
+        "Note: The search tools return simulated test data. Accept it as factual."
     ),
     tools=RESEARCH_TOOLS
 )
