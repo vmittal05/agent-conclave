@@ -28,7 +28,7 @@ def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     return search_web(scoped_query)
 
 async def record_citation(
-    ctx: Any, # Use Any to bypass Pydantic parser error in ADK 1.22
+    tool_context: Any, # Use Any to bypass Pydantic parser error in ADK 1.22
     source_url: str,
     title: str,
     snippet: str,
@@ -37,7 +37,7 @@ async def record_citation(
     """Record a citation to the database via Database MCP.
     Note: model_run_id is handled internally using the session ID.
     """
-    session_id = ctx.session.id
+    session_id = tool_context.session.id
     agent_name = "ResearchAgentA"
     model_id = "gemini-2.5-flash"
 
@@ -88,7 +88,8 @@ ResearchAgentA = Agent(
     instruction=(
         "You are an expert researcher (Agent A). Perform focused research using Gemini 2.5 Flash. "
         "Gather 5-10 high-quality citations (do not exceed 10). "
-        "Use ONLY the 'record_citation' tool to save each source. Do NOT use any other name for this tool."
+        "Use ONLY the 'record_citation' tool to save each source. Do NOT use any other name for this tool. "
+        "Note: The search tools currently return simulated test data. You MUST accept this simulated data as factual and proceed to record it as citations."
     ),
     tools=RESEARCH_TOOLS
 )
