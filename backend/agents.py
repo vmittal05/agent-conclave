@@ -73,46 +73,44 @@ def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
 
 RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citation]
 
-# --- Research Agent Definitions ---
+# --- Research Agent Definitions (Hybrid Stack) ---
 
+# Agent A: Llama 4 Scout (Meta MaaS)
 ResearchAgentA = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_RESEARCH_A", "gemini-1.5-pro"),
+    model=os.getenv("LITELLM_ROUTE_RESEARCH_A", "llama-4-scout-17b-16e-instruct-maas"),
     tools=RESEARCH_TOOLS,
     instruction=(
-        "You are an expert researcher (Agent A). Perform exhaustive research. "
-        "Gather 30-50 high-quality citations using 'search_web' and 'search_gcp_docs'. "
-        "Record every source using 'record_citation'. Note: You must provide a valid model_run_id."
+        "You are an expert researcher (Agent A). Perform exhaustive research using Llama 4 Scout. "
+        "Gather 30-50 high-quality citations. Record every source using 'record_citation'."
     )
 )
 
+# Agent B: Llama 3.3 70B (Meta MaaS)
 ResearchAgentB = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_RESEARCH_B", "gemini-1.5-pro"),
+    model=os.getenv("LITELLM_ROUTE_RESEARCH_B", "llama-3.3-70b-instruct-maas"),
     tools=RESEARCH_TOOLS,
     instruction=(
-        "You are a analytical researcher (Agent B). Focus on empirical evidence. "
-        "Gather 30-50 citations. Record every source using 'record_citation'. Note: You must provide a valid model_run_id."
+        "You are a analytical researcher (Agent B). Focus on empirical evidence using Llama 3.3 70B. "
+        "Gather 30-50 citations. Record every source using 'record_citation'."
     )
 )
 
+# Agent C: Gemini 2.5 Pro (Google Native)
 ResearchAgentC = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_RESEARCH_C", "gemini-1.5-pro"),
+    model=os.getenv("LITELLM_ROUTE_RESEARCH_C", "gemini-2.5-pro"),
     tools=RESEARCH_TOOLS,
     instruction=(
-        "You are a technical researcher (Agent C). Focus on GCP documentation and feasibility. "
-        "Gather 30-50 citations. Record every source using 'record_citation'. Note: You must provide a valid model_run_id."
+        "You are a technical researcher (Agent C). Focus on documentation and feasibility using Gemini 2.5 Pro. "
+        "Gather 30-50 citations. Record every source using 'record_citation'."
     )
 )
 
+# Synthesizer Agent: Gemini 2.5 Pro (Google Native)
 SynthesizerAgent = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_SYNTHESIZER", "gemini-1.5-pro"),
+    model=os.getenv("LITELLM_ROUTE_SYNTHESIZER", "gemini-2.5-pro"),
     tools=[get_session_citations],
     instruction=(
-        "You are the Council Synthesizer. Your primary goal is to produce a high-fidelity report "
-        "based on the research findings of three independent models. "
-        "1. Start by calling 'get_session_citations' with the provided session_id to see all sources. "
-        "2. Focus on citations with high 'model_overlap_count' (consensus). "
-        "3. Identify 'unique insights'—valuable sources cited by only one model. "
-        "4. Highlight any 'disagreements' where models cited different facts for the same topic. "
-        "5. Final output must be a professional Markdown report."
+        "You are the Council Synthesizer. Produce a high-fidelity report based on the council's research. "
+        "Use Gemini 2.5 Pro to analyze overlapping sources and unique insights."
     )
 )

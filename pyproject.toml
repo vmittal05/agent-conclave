@@ -1,21 +1,24 @@
 [tool.poetry]
 name = "agent-conclave"
 version = "0.1.0"
+package-mode = false
 description = "GCP-native multi-agent conclave project"
 authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.109.0"
-uvicorn = "^0.27.0"
-langgraph = "^0.0.26"
+fastapi = "^0.115.0"
+uvicorn = "^0.34.0"
+langgraph = "^0.2.0"
+sqlalchemy = "^2.0.25"
 google-cloud-firestore = "^2.14.0"
 google-cloud-secret-manager = "^2.18.0"
 google-cloud-aiplatform = { extras = ["agent_engines", "adk"], version = ">=1.112.0" }
 psycopg2-binary = "^2.9.9"
+pg8000 = "^1.30.3"
 pgvector = "^0.2.4"
 typer = "^0.9.0"
-httpx = "^0.26.0"
+httpx = "^0.28.1"
 python-dotenv = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
