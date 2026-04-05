@@ -27,8 +27,8 @@ This document explains how to deploy and test the Multi-Agent Conclave project l
    - Run the initial migration (`migrations/001_initial_schema.sql`) on your Postgres instance.
 
 4. **Run MCP Servers (Local)**:
-   - Run Search Server: `python mcp/search_server.py` (Port 8001)
-   - Run Database Server: `python mcp/db_server.py` (Port 8004)
+   - Run Search Server: `python mcp_servers/search_server.py` (Port 8001)
+   - Run Database Server: `python mcp_servers/db_server.py` (Port 8004)
 
 5. **Run Backend API**:
    ```bash

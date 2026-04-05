@@ -1,8 +1,7 @@
 import os
 import httpx
 from typing import List, Dict, Any
-import vertexai
-from vertexai import agent_engines
+from google.adk import Agent
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,12 +9,6 @@ load_dotenv()
 # MCP Server URLs
 SEARCH_URL = os.getenv("MCP_SEARCH_SERVER_URL", "http://localhost:8001")
 DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8004")
-
-# Initialize Vertex AI
-vertexai.init(
-    project=os.getenv("GCP_PROJECT_ID"),
-    location=os.getenv("GCP_REGION", "us-central1")
-)
 
 # --- Common Research Tools ---
 
@@ -73,44 +66,48 @@ def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
 
 RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citation]
 
-# --- Research Agent Definitions (Hybrid Stack) ---
+# --- Research Agent Definitions (Working ADK Pattern) ---
 
-# Agent A: Llama 4 Scout (Meta MaaS)
-ResearchAgentA = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_RESEARCH_A", "llama-4-scout-17b-16e-instruct-maas"),
-    tools=RESEARCH_TOOLS,
+# Agent A: Gemini 2.5 Flash
+ResearchAgentA = Agent(
+    name="ResearchAgentA",
+    model="gemini-2.5-flash",
     instruction=(
-        "You are an expert researcher (Agent A). Perform exhaustive research using Llama 4 Scout. "
+        "You are an expert researcher (Agent A). Perform exhaustive research using Gemini 2.5 Flash. "
         "Gather 30-50 high-quality citations. Record every source using 'record_citation'."
-    )
+    ),
+    tools=RESEARCH_TOOLS
 )
 
-# Agent B: Llama 3.3 70B (Meta MaaS)
-ResearchAgentB = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_RESEARCH_B", "llama-3.3-70b-instruct-maas"),
-    tools=RESEARCH_TOOLS,
+# Agent B: Gemini 2.5 Flash
+ResearchAgentB = Agent(
+    name="ResearchAgentB",
+    model="gemini-2.5-flash",
     instruction=(
-        "You are a analytical researcher (Agent B). Focus on empirical evidence using Llama 3.3 70B. "
+        "You are a analytical researcher (Agent B). Focus on empirical evidence using Gemini 2.5 Flash. "
         "Gather 30-50 citations. Record every source using 'record_citation'."
-    )
+    ),
+    tools=RESEARCH_TOOLS
 )
 
-# Agent C: Gemini 2.5 Pro (Google Native)
-ResearchAgentC = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_RESEARCH_C", "gemini-2.5-pro"),
-    tools=RESEARCH_TOOLS,
+# Agent C: Gemini 2.5 Pro
+ResearchAgentC = Agent(
+    name="ResearchAgentC",
+    model="gemini-2.5-pro",
     instruction=(
         "You are a technical researcher (Agent C). Focus on documentation and feasibility using Gemini 2.5 Pro. "
         "Gather 30-50 citations. Record every source using 'record_citation'."
-    )
+    ),
+    tools=RESEARCH_TOOLS
 )
 
-# Synthesizer Agent: Gemini 2.5 Pro (Google Native)
-SynthesizerAgent = agent_engines.LangchainAgent(
-    model=os.getenv("LITELLM_ROUTE_SYNTHESIZER", "gemini-2.5-pro"),
-    tools=[get_session_citations],
+# Synthesizer Agent: Gemini 2.5 Pro
+SynthesizerAgent = Agent(
+    name="SynthesizerAgent",
+    model="gemini-2.5-pro",
     instruction=(
         "You are the Council Synthesizer. Produce a high-fidelity report based on the council's research. "
-        "Use Gemini 2.5 Pro to analyze overlapping sources and unique insights."
-    )
+        "Call 'get_session_citations' to analyze overlapping sources and unique insights."
+    ),
+    tools=[get_session_citations]
 )
