@@ -60,7 +60,8 @@ ORCHESTRATOR_PID=$!
 popd
 
 # Wait a bit for them to start up
-sleep 10
+echo "Waiting 20 seconds for all services to initialize..."
+sleep 20
 
 echo "Starting Backend API on port 8080..."
 export ORCHESTRATOR_URL=http://localhost:8005

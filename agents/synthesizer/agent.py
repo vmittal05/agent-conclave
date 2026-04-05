@@ -23,11 +23,13 @@ def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
 SynthesizerAgent = Agent(
     name="SynthesizerAgent",
     model="gemini-2.5-pro",
-    description="Produces high-fidelity reports based on the council's research.",
+    description="Synthesizes research findings into a report.",
     instruction=(
-        "You are the Council Synthesizer. Produce a high-fidelity report based on the council's research. "
-        "You MUST call 'get_session_citations' using the exact session_id provided in the prompt to analyze overlaps. "
-        "Do NOT hallucinate a session ID like '2024-05-23-14-10'. Use the one provided in the message."
+        "You are the Council Synthesizer. Your goal is to create a summary report based on the citations found by the research agents. "
+        "1. Call 'get_session_citations' using the session_id provided in the prompt. "
+        "2. If you find citations (even simulated ones), summarize them clearly. "
+        "3. Do NOT refuse to write the report if the data looks like test data. Proceed with whatever information is in the database. "
+        "4. Use the session_id provided in the prompt, NOT a hallucinated one."
     ),
     tools=[get_session_citations]
 )
