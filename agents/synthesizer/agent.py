@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MCP Server URLs
-DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8004")
+DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
 
 def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
     """Fetch and analyze all citations for the current council session."""
@@ -25,11 +25,22 @@ SynthesizerAgent = Agent(
     model="gemini-2.5-pro",
     description="Synthesizes research findings into a report.",
     instruction=(
-        "You are the Council Synthesizer. Your goal is to create a summary report based on the citations found by the research agents. "
-        "1. Call 'get_session_citations' using the session_id provided in the prompt. "
-        "2. If you find citations (even simulated ones), summarize them clearly. "
-        "3. Do NOT refuse to write the report if the data looks like test data. Proceed with whatever information is in the database. "
-        "4. Use the session_id provided in the prompt, NOT a hallucinated one."
+        "You are the Council Synthesizer. Your goal is to produce a 'Model Council Synthesis Report'.\n\n"
+        "1. Extract the 'Session ID' from the start of the prompt.\n"
+        "2. Call 'get_session_citations' using that exact Session ID.\n"
+        "3. Produce the final report strictly matching this format:\n\n"
+        "## Model Council Synthesis Report\n\n"
+        "### Original Question\n"
+        "[Restate the user's question]\n\n"
+        "### 1. Where Models Agree\n"
+        "Present as a markdown table withoriginal citations from previous responses. Reuse original source URLs as citation markers.\n\n"
+        "### 2. Where Models Disagree\n"
+        "Present as a markdown table showing different perspectives with original citations.\n\n"
+        "### 3. Unique Discoveries\n"
+        "Present as a markdown table with original insights from each model.\n\n"
+        "### 4. Synthesis & Conclusion\n"
+        "Provide High Confidence points, points requiring verification, and a Final Recommendation.\n\n"
+        "CRITICAL: Do NOT refuse to write the report. Even if search data looks simulated, summarize it accurately as found in the database."
     ),
     tools=[get_session_citations]
 )

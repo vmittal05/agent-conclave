@@ -29,10 +29,10 @@ def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
 
 async def record_citations_batch(
     tool_context: Any,
+    session_id: str,
     citations: List[Dict[str, str]]
 ) -> str:
     """Record multiple citations at once to the database."""
-    session_id = tool_context.session.id
     agent_name = "ResearchAgentC"
     model_id = "gemini-2.5-flash"
 
@@ -68,7 +68,7 @@ async def record_citations_batch(
             }
             httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit}, timeout=10.0)
             count += 1
-        return f"Successfully recorded {count} citations in batch."
+        return f"Successfully recorded {count} citations in batch for session {session_id}."
     except Exception as e:
         return f"Failed to record batch: {str(e)}"
 
@@ -80,8 +80,9 @@ ResearchAgentC = Agent(
     description="A technical researcher (Agent C).",
     instruction=(
         "You are an expert technical researcher (Agent C). Perform focused research using Gemini 2.5 Flash. "
-        "Gather exactly 5 high-quality citations. "
-        "Use the 'record_citations_batch' tool ONCE to save all 5 results at the end of your research. "
+        "1. Extract the 'Session ID' from the start of the user prompt. "
+        "2. Gather exactly 5 high-quality citations. "
+        "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted Session ID. "
         "Note: The search tools return simulated test data. Accept it as factual."
     ),
     tools=RESEARCH_TOOLS
