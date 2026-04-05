@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Conclave</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏛️ Model Research Conclave</h1>
+            <p>Multi-agent research and synthesis powered by Google ADK</p>
+        </header>
+
+        <div class="input-section">
+            <textarea id="queryInput" placeholder="Enter your research question here... (e.g., 'What are the latest best practices for BigQuery security?')"></textarea>
+            <button id="submitBtn">Start Research Conclave</button>
+        </div>
+
+        <div id="statusSection" class="status-section hidden">
+            <div class="loader"></div>
+            <p id="statusText">Initializing council...</p>
+            <div class="progress-bar-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="resultSection" class="result-section hidden">
+            <div id="markdownResult"></div>
+            <button id="newQueryBtn">New Research Question</button>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

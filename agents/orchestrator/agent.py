@@ -6,6 +6,7 @@ from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.events import Event, EventActions
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.callback_context import CallbackContext
+from google.genai import types as genai_types
 
 from authenticated_httpx import create_authenticated_client
 
@@ -59,28 +60,28 @@ class ConclaveOrchestrator(BaseAgent):
         )
 
     async def run_async(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        # Extract the original user message
-        user_message = ctx.user_content.parts[0].text
-        
+        def create_msg_event(text: str) -> Event:
+            content = genai_types.Content(parts=[genai_types.Part(text=text)])
+            return Event(author=self.name, content=content, actions=EventActions(skip_summarization=True))
+
         # 1. Research Agent A
-        yield Event(author=self.name, content="[Stage 1/4] Research Agent A (Claude perspective) is starting...", actions=EventActions(skip_summarization=True))
-        async for event in research_a.run_async(user_message):
+        yield create_msg_event("[Stage 1/4] Research Agent A (Claude perspective) is starting...")
+        async for event in research_a.run_async(ctx):
             yield event
             
         # 2. Research Agent B
-        yield Event(author=self.name, content="[Stage 2/4] Research Agent B (GPT perspective) is starting...", actions=EventActions(skip_summarization=True))
-        async for event in research_b.run_async(user_message):
+        yield create_msg_event("[Stage 2/4] Research Agent B (GPT perspective) is starting...")
+        async for event in research_b.run_async(ctx):
             yield event
             
         # 3. Research Agent C
-        yield Event(author=self.name, content="[Stage 3/4] Research Agent C (Gemini perspective) is starting...", actions=EventActions(skip_summarization=True))
-        async for event in research_c.run_async(user_message):
+        yield create_msg_event("[Stage 3/4] Research Agent C (Gemini perspective) is starting...")
+        async for event in research_c.run_async(ctx):
             yield event
             
         # 4. Synthesis
-        yield Event(author=self.name, content="[Stage 4/4] Generating Model Council Synthesis Report...", actions=EventActions(skip_summarization=True))
-        # We pass the same original message (which contains the Session ID) to the synthesizer
-        async for event in synthesizer.run_async(user_message):
+        yield create_msg_event("[Stage 4/4] Generating Model Council Synthesis Report...")
+        async for event in synthesizer.run_async(ctx):
             yield event
 
 root_agent = ConclaveOrchestrator()

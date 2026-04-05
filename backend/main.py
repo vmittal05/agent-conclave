@@ -102,33 +102,63 @@ async def run_council_orchestrator(session_id: str, question: str):
             "updated_at": firestore.SERVER_TIMESTAMP
         })
 
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from httpx_sse import aconnect_sse
+
+# --- Models ---
+class ChatRequest(BaseModel):
+    message: str
+    user_id: str = "council_user"
+
 # --- Endpoints ---
 
-@app.post("/council/sessions", response_model=SessionResponse)
-async def create_session(request: SessionCreate, background_tasks: BackgroundTasks):
-    """Create a new research session and trigger the orchestrator."""
-    session_id = str(uuid.uuid4())
-    created_at = datetime.utcnow().isoformat()
-
-    # Create session document in Firestore
-    doc_ref = db.collection("sessions").document(session_id)
-    doc_ref.set({
-        "session_id": session_id,
-        "question": request.question,
-        "status": "pending",
-        "progress": {"completed_models": 0, "total_models": 3},
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "updated_at": firestore.SERVER_TIMESTAMP
-    })
-
-    # Start orchestrator execution in the background
-    background_tasks.add_task(run_council_orchestrator, session_id, request.question)
-
-    return {
-        "session_id": session_id,
-        "status": "pending",
-        "created_at": created_at
+@app.post("/api/chat_stream")
+async def chat_stream(request: ChatRequest):
+    """Streaming endpoint for the UI to monitor progress and get the final report."""
+    
+    # 1. Create session on orchestrator
+    adk_session_id = await create_orchestrator_session(request.user_id)
+    
+    # 2. Prepare request to orchestrator
+    request_body = {
+        "appName": "agent",
+        "userId": request.user_id,
+        "sessionId": adk_session_id,
+        "newMessage": {
+            "role": "user",
+            "parts": [{"text": request.message}]
+        },
+        "streaming": False
     }
+
+    async def event_generator():
+        final_text = ""
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            async with aconnect_sse(client, "POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as event_source:
+                async for server_event in event_source.aiter_sse():
+                    event = server_event.json()
+                    
+                    # Handle Stage notifications (Progress)
+                    if "content" in event and event["content"]:
+                        content = genai_types.Content.model_validate(event["content"])
+                        text = "".join([p.text for p in content.parts if p.text]) # type: ignore
+                        
+                        if "[Stage" in text:
+                            yield json.dumps({"type": "progress", "text": text}) + "\n"
+                        else:
+                            # Accumulate the actual report parts
+                            # Note: In sequential mode, the final synthesizer output is the last one
+                            if event["author"] == "SynthesizerAgent":
+                                final_text += text
+        
+        # Send final result
+        yield json.dumps({"type": "result", "text": final_text.strip()}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
+# Serve UI
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 @app.get("/council/sessions/{session_id}")
 async def get_session_status(session_id: str):

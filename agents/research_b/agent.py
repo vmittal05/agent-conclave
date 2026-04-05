@@ -76,7 +76,7 @@ RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
 ResearchAgentB = Agent(
     name="ResearchAgentB",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash-preview",
     description="An analytical researcher (Agent B).",
     instruction=(
         "You are an analytical researcher (Agent B). Perform focused research using Gemini 2.5 Flash. "
