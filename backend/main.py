@@ -1,11 +1,13 @@
 import os
 import uuid
+import json
+import httpx
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from google.cloud import firestore
-from backend.graph import council_graph
+from google.genai import types as genai_types
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,8 +15,9 @@ load_dotenv()
 app = FastAPI(title="Multi-Agent Conclave API")
 
 # Initialize Firestore
-# Note: Ensure GOOGLE_APPLICATION_CREDENTIALS is set or running in a GCP environment
 db = firestore.Client(project=os.getenv("GCP_PROJECT_ID"))
+
+ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:8005").rstrip("/")
 
 # --- Models ---
 class SessionCreate(BaseModel):
@@ -25,37 +28,57 @@ class SessionResponse(BaseModel):
     status: str
     created_at: str
 
-# --- Graph Execution Logic ---
-async def run_council_graph(session_id: str, question: str):
-    """Background task to execute the LangGraph workflow."""
-    try:
-        # Initial State
-        initial_state = {
-            "session_id": session_id,
-            "user_question": question,
-            "progress": {"completed_models": 0, "total_models": 3},
-            "agent_summaries": [],
-            "ready_for_synthesis": False,
-            "final_report": ""
-        }
+# --- Orchestrator Interaction ---
+
+async def query_orchestrator(user_id: str, session_id: str, message: str) -> str:
+    """Query the Orchestrator agent microservice."""
+    request_body = {
+        "appName": "agent",
+        "userId": user_id,
+        "sessionId": session_id,
+        "newMessage": {
+            "role": "user",
+            "parts": [{"text": message}]
+        },
+        "streaming": False
+    }
+    
+    async with httpx.AsyncClient(timeout=600.0) as client:
+        # We use /run (non-streaming) for simplicity in background task
+        response = await client.post(f"{ORCHESTRATOR_URL}/run", json=request_body)
+        response.raise_for_status()
         
+        # ADK /run returns a list of events. The last one usually has the final content.
+        events = response.json()
+        final_text = ""
+        for event in events:
+            if "content" in event and event["content"]:
+                content = genai_types.Content.model_validate(event["content"])
+                for part in content.parts:
+                    if part.text:
+                        final_text += part.text
+        return final_text.strip()
+
+async def run_council_orchestrator(session_id: str, question: str):
+    """Background task to execute the Orchestrator workflow."""
+    try:
         # Update Firestore to 'in_progress'
         doc_ref = db.collection("sessions").document(session_id)
         doc_ref.update({"status": "in_progress", "updated_at": firestore.SERVER_TIMESTAMP})
 
-        # Run Graph
-        # Use ainvoke for async execution of the compiled graph
-        final_state = await council_graph.ainvoke(initial_state)
+        # Run Orchestrator
+        # We use the session_id as the ADK sessionId to keep it consistent
+        report = await query_orchestrator(user_id="council_user", session_id=session_id, message=question)
 
         # Final Update to Firestore
         doc_ref.update({
             "status": "completed",
             "progress": {"completed_models": 3, "total_models": 3},
-            "report_markdown": final_state.get("final_report", ""),
+            "report_markdown": report,
             "updated_at": firestore.SERVER_TIMESTAMP
         })
     except Exception as e:
-        print(f"Error in graph execution: {e}")
+        print(f"Error in orchestrator execution: {e}")
         db.collection("sessions").document(session_id).update({
             "status": "error",
             "error_message": str(e),
@@ -66,7 +89,7 @@ async def run_council_graph(session_id: str, question: str):
 
 @app.post("/council/sessions", response_model=SessionResponse)
 async def create_session(request: SessionCreate, background_tasks: BackgroundTasks):
-    """Create a new research session and trigger the council graph."""
+    """Create a new research session and trigger the orchestrator."""
     session_id = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat()
 
@@ -81,8 +104,8 @@ async def create_session(request: SessionCreate, background_tasks: BackgroundTas
         "updated_at": firestore.SERVER_TIMESTAMP
     })
 
-    # Start graph execution in the background
-    background_tasks.add_task(run_council_graph, session_id, request.question)
+    # Start orchestrator execution in the background
+    background_tasks.add_task(run_council_orchestrator, session_id, request.question)
 
     return {
         "session_id": session_id,
