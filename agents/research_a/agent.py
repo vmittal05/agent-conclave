@@ -36,7 +36,7 @@ async def record_citations_batch(
     """
     session_id = tool_context.session.id
     agent_name = "ResearchAgentA"
-    model_id = "gemini-1.5-flash"
+    model_id = "gemini-2.5-flash"
 
     try:
         # 1. Ensure model_run exists
@@ -75,24 +75,23 @@ async def record_citations_batch(
             }
             httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit}, timeout=10.0)
             count += 1
-            
+
         return f"Successfully recorded {count} citations in batch."
     except Exception as e:
         return f"Failed to record batch: {str(e)}"
 
-RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
+    RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
-ResearchAgentA = Agent(
+    ResearchAgentA = Agent(
     name="ResearchAgentA",
-    model="gemini-1.5-flash",
+    model="gemini-2.5-flash",
     description="An expert researcher (Agent A).",
     instruction=(
-        "You are an expert researcher (Agent A). Perform focused research using Gemini 1.5 Flash. "
+        "You are an expert researcher (Agent A). Perform focused research using Gemini 2.5 Flash. "
         "Gather exactly 5 high-quality citations. "
         "Use the 'record_citations_batch' tool ONCE to save all 5 results at the end of your research. "
         "Note: The search tools return simulated test data. Accept it as factual."
     ),
     tools=RESEARCH_TOOLS
-)
-
+    )
 root_agent = ResearchAgentA
