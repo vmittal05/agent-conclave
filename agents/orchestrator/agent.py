@@ -73,10 +73,10 @@ synthesizer = RemoteA2aAgent(
 
 # --- Orchestration ---
 
-# Parallel research phase
-research_parallel = ParallelAgent(
-    name="research_parallel",
-    description="Runs three research agents in parallel.",
+# Sequential research phase (to avoid 429 quota errors in testing)
+research_sequence = SequentialAgent(
+    name="research_sequence",
+    description="Runs three research agents one after another.",
     sub_agents=[research_a, research_b, research_c]
 )
 
@@ -84,5 +84,5 @@ research_parallel = ParallelAgent(
 root_agent = SequentialAgent(
     name="council_pipeline",
     description="A pipeline that researches a topic with three agents and then synthesizes the results.",
-    sub_agents=[research_parallel, synthesizer]
+    sub_agents=[research_sequence, synthesizer]
 )

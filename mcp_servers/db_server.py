@@ -79,13 +79,13 @@ class FirestoreUpdateRequest(BaseModel):
 
 @app.post("/tools/sql_query")
 async def sql_query(req: QueryRequest):
-    """Execute a read-only SQL query."""
+    """Execute a SQL query with immediate commit."""
     logger.info(f"Executing SQL Query: {req.sql} with params {req.params}")
     engine = get_db_engine()
     try:
-        with engine.connect() as conn:
+        # Use engine.begin() to ensure the transaction is committed
+        with engine.begin() as conn:
             result = conn.execute(text(req.sql), req.params or {})
-            # Handle cases where result might not have rows (e.g. INSERT ... RETURNING)
             if result.returns_rows:
                 rows = [dict(row._mapping) for row in result]
                 return {"results": rows}

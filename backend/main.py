@@ -83,8 +83,9 @@ async def run_council_orchestrator(session_id: str, question: str):
         doc_ref.update({"status": "in_progress", "updated_at": firestore.SERVER_TIMESTAMP})
 
         # Run Orchestrator
-        # We pass a consistent user_id; the adk_session_id is generated internally now
-        report = await query_orchestrator(user_id="council_user", message=question)
+        # We include the session_id in the prompt so the Synthesizer knows which citations to query
+        orchestrator_prompt = f"Session ID: {session_id}. Question: {question}"
+        report = await query_orchestrator(user_id="council_user", message=orchestrator_prompt)
 
         # Final Update to Firestore
         doc_ref.update({
