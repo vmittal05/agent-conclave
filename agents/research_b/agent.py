@@ -34,7 +34,7 @@ async def record_citations_batch(
 ) -> str:
     """Record multiple citations at once to the database."""
     agent_name = "ResearchAgentB"
-    model_id = "gemini-3-flash-preview"
+    model_id = "gemini-3.1-flash-lite-preview"
 
     try:
         sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
@@ -76,10 +76,10 @@ RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
 ResearchAgentB = Agent(
     name="ResearchAgentB",
-    model="gemini-3-flash-preview",
+    model="gemini-3.1-flash-lite-preview",
     description="An analytical researcher (Agent B).",
     instruction=(
-        "You are an analytical researcher (Agent B). Perform focused research using Gemini 3 Flash Preview. "
+        "You are an analytical researcher (Agent B). Perform focused research using Gemini 3.1 Flash Preview. "
         "1. Extract the 'Session ID' from the start of the user prompt. "
         "2. Gather exactly 5 high-quality citations from the live web. "
         "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted Session ID."

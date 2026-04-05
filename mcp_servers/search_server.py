@@ -18,11 +18,20 @@ class SearchRequest(BaseModel):
     query: str
     top_k: Optional[int] = 10
 
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @app.post("/tools/search")
 async def search(req: SearchRequest):
     """Perform a web search."""
-    # If credentials are missing, we provide a structured mock for testing Phase 4/5 logic
+    logger.info(f"Received search request for query: {req.query}")
+    
+    # If credentials are missing, we provide a structured mock
     if not GOOGLE_SEARCH_API_KEY or not GOOGLE_SEARCH_CX:
+        logger.warning("Search credentials missing, returning mock data.")
         return {
             "results": [
                 {
@@ -30,12 +39,6 @@ async def search(req: SearchRequest):
                     "title": "Google Cloud Documentation",
                     "snippet": f"Found results for {req.query}. This is a simulated search response.",
                     "source_type": "web"
-                },
-                {
-                    "url": "https://en.wikipedia.org/wiki/Multi-agent_system",
-                    "title": "Multi-agent systems",
-                    "snippet": "A multi-agent system is a computerized system composed of multiple interacting intelligent agents.",
-                    "source_type": "academic"
                 }
             ]
         }
@@ -50,8 +53,11 @@ async def search(req: SearchRequest):
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
+            response = await client.get(url, params=params, timeout=10.0)
+            
+            if response.status_code != 200:
+                logger.error(f"Google Search API Error ({response.status_code}): {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"Google API Error: {response.text}")
             
             data = response.json()
             items = data.get("items", [])
@@ -65,8 +71,13 @@ async def search(req: SearchRequest):
                     "source_type": "web"
                 })
             
+            logger.info(f"Successfully fetched {len(results)} results from Google.")
             return {"results": results}
+    except httpx.TimeoutException:
+        logger.error("Google Search API timed out.")
+        raise HTTPException(status_code=504, detail="Search API timeout")
     except Exception as e:
+        logger.error(f"Unexpected error in search tool: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
