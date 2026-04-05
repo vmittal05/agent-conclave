@@ -14,6 +14,7 @@ sqlalchemy = "^2.0.25"
 google-cloud-firestore = "^2.14.0"
 google-cloud-secret-manager = "^2.18.0"
 google-cloud-aiplatform = { extras = ["agent_engines", "adk"], version = ">=1.112.0" }
+cloud-sql-python-connector = { extras = ["pg8000"], version = "^1.10.0" }
 psycopg2-binary = "^2.9.9"
 pg8000 = "^1.30.3"
 pgvector = "^0.2.4"
