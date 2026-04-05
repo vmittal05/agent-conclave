@@ -2,7 +2,6 @@ import os
 import httpx
 from typing import List, Dict, Any, Optional
 from google.adk import Agent
-from google.adk.agents.invocation_context import InvocationContext
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -29,7 +28,7 @@ def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     return search_web(scoped_query)
 
 async def record_citation(
-    ctx: InvocationContext,
+    ctx: Any, # Use Any to bypass Pydantic parser error in ADK 1.22
     source_url: str,
     title: str,
     snippet: str,
@@ -38,13 +37,11 @@ async def record_citation(
     """Record a citation to the database via Database MCP.
     Note: model_run_id is handled internally using the session ID.
     """
-    # 1. Ensure we have a model_run record for this agent/session
     session_id = ctx.session.id
     agent_name = "ResearchAgentA"
     model_id = "gemini-2.5-flash"
 
     try:
-        # Check if model_run exists
         sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
         res_check = httpx.post(f"{DB_URL}/tools/sql_query", json={
             "sql": sql_check, 
@@ -56,9 +53,7 @@ async def record_citation(
         if rows:
             model_run_id = rows[0]["id"]
         else:
-            # Create new model_run
             sql_ins = "INSERT INTO model_runs (session_id, agent_name, model_id) VALUES (:session_id, :agent_name, :model_id) RETURNING id"
-            # Note: sql_execute doesn't always return rows, so we use sql_query for RETURNING
             res_ins = httpx.post(f"{DB_URL}/tools/sql_query", json={
                 "sql": sql_ins,
                 "params": {"session_id": session_id, "agent_name": agent_name, "model_id": model_id}
@@ -66,7 +61,6 @@ async def record_citation(
             res_ins.raise_for_status()
             model_run_id = res_ins.json()["results"][0]["id"]
 
-        # 2. Record the citation
         sql_cit = """
             INSERT INTO citations (model_run_id, source_url, source_type, title, snippet)
             VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)
@@ -87,9 +81,6 @@ async def record_citation(
 
 RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citation]
 
-# --- Research Agent Definitions (Working ADK Pattern) ---
-
-# Agent A: Gemini 2.5 Flash
 ResearchAgentA = Agent(
     name="ResearchAgentA",
     model="gemini-2.5-flash",
