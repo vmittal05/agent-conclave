@@ -25,7 +25,7 @@ SynthesizerAgent = Agent(
     model="gemini-2.5-pro",
     description="Synthesizes research findings into a report.",
     instruction=(
-        "You are the Council Synthesizer. Your goal is to produce a 'Model Council Synthesis Report'.\n\n"
+        "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n\n"
         "1. Extract the 'Session ID' from the start of the prompt.\n"
         "2. Call 'get_session_citations' using that exact Session ID.\n"
         "3. Produce the final report strictly matching this format:\n\n"

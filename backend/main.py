@@ -138,19 +138,27 @@ async def chat_stream(request: ChatRequest):
             async with aconnect_sse(client, "POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as event_source:
                 async for server_event in event_source.aiter_sse():
                     event = server_event.json()
+                    author = event.get("author", "Agent")
                     
-                    # Handle Stage notifications (Progress)
                     if "content" in event and event["content"]:
                         content = genai_types.Content.model_validate(event["content"])
                         text = "".join([p.text for p in content.parts if p.text]) # type: ignore
                         
+                        if not text: continue
+
                         if "[Stage" in text:
+                            # Explicit stage progress
                             yield json.dumps({"type": "progress", "text": text}) + "\n"
+                        elif author == "SynthesizerAgent":
+                            # Final report accumulation
+                            final_text += text
+                            # Also show activity for synthesizer
+                            yield json.dumps({"type": "activity", "author": author, "text": "Drafting final synthesis..."}) + "\n"
                         else:
-                            # Accumulate the actual report parts
-                            # Note: In sequential mode, the final synthesizer output is the last one
-                            if event["author"] == "SynthesizerAgent":
-                                final_text += text
+                            # Pass through research agent activity (thoughts/tool updates)
+                            # Truncate long thoughts for the activity log
+                            display_text = (text[:100] + '...') if len(text) > 100 else text
+                            yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
         
         # Send final result
         yield json.dumps({"type": "result", "text": final_text.strip()}) + "\n"
