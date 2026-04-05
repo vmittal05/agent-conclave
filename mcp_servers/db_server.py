@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -10,6 +11,10 @@ from sqlalchemy import text
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Database MCP Server")
 
@@ -33,22 +38,27 @@ def get_firestore_client():
 def get_db_engine():
     global db_engine
     if db_engine is None:
-        connector = Connector()
-        def getconn():
-            conn = connector.connect(
-                INSTANCE_CONNECTION_NAME,
-                "pg8000",
-                user=DB_USER,
-                password=DB_PASS,
-                db=DB_NAME,
-                ip_type=IPTypes.PUBLIC # Adjust based on env
-            )
-            return conn
+        try:
+            connector = Connector()
+            def getconn():
+                conn = connector.connect(
+                    INSTANCE_CONNECTION_NAME,
+                    "pg8000",
+                    user=DB_USER,
+                    password=DB_PASS,
+                    db=DB_NAME,
+                    ip_type=IPTypes.PUBLIC
+                )
+                return conn
 
-        db_engine = sqlalchemy.create_engine(
-            "postgresql+pg8000://",
-            creator=getconn,
-        )
+            db_engine = sqlalchemy.create_engine(
+                "postgresql+pg8000://",
+                creator=getconn,
+            )
+            logger.info("Cloud SQL Engine initialized.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Cloud SQL Engine: {e}")
+            raise e
     return db_engine
 
 # --- Models ---
@@ -70,24 +80,32 @@ class FirestoreUpdateRequest(BaseModel):
 @app.post("/tools/sql_query")
 async def sql_query(req: QueryRequest):
     """Execute a read-only SQL query."""
+    logger.info(f"Executing SQL Query: {req.sql} with params {req.params}")
     engine = get_db_engine()
     try:
         with engine.connect() as conn:
             result = conn.execute(text(req.sql), req.params or {})
-            rows = [dict(row._mapping) for row in result]
-            return {"results": rows}
+            # Handle cases where result might not have rows (e.g. INSERT ... RETURNING)
+            if result.returns_rows:
+                rows = [dict(row._mapping) for row in result]
+                return {"results": rows}
+            else:
+                return {"results": [], "rowcount": result.rowcount}
     except Exception as e:
+        logger.error(f"SQL Query Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tools/sql_execute")
 async def sql_execute(req: QueryRequest):
     """Execute a write SQL statement (INSERT/UPDATE)."""
+    logger.info(f"Executing SQL Statement: {req.sql} with params {req.params}")
     engine = get_db_engine()
     try:
         with engine.begin() as conn:
             result = conn.execute(text(req.sql), req.params or {})
             return {"rowcount": result.rowcount}
     except Exception as e:
+        logger.error(f"SQL Execute Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tools/firestore_get")
@@ -102,6 +120,7 @@ async def firestore_get(req: FirestoreGetRequest):
         else:
             return {"error": "Document not found"}
     except Exception as e:
+        logger.error(f"Firestore Get Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tools/firestore_update")
@@ -113,15 +132,16 @@ async def firestore_update(req: FirestoreUpdateRequest):
         doc_ref.set(req.data, merge=True)
         return {"status": "success"}
     except Exception as e:
+        logger.error(f"Firestore Update Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tools/get_session_citations")
 async def get_session_citations(req: Dict[str, str]):
     """Fetch citations for a session with overlap analysis."""
     session_id = req.get("session_id")
+    logger.info(f"Fetching citations for session: {session_id}")
     engine = get_db_engine()
     
-    # SQL to find unique citations and count overlaps across different models
     sql = """
         SELECT 
             c.source_url, 
@@ -141,8 +161,9 @@ async def get_session_citations(req: Dict[str, str]):
             rows = [dict(row._mapping) for row in result]
             return {"results": rows}
     except Exception as e:
+        logger.error(f"Get Session Citations Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8004)))
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8010)))

@@ -30,12 +30,24 @@ class SessionResponse(BaseModel):
 
 # --- Orchestrator Interaction ---
 
-async def query_orchestrator(user_id: str, session_id: str, message: str) -> str:
-    """Query the Orchestrator agent microservice using SSE."""
+async def create_orchestrator_session(user_id: str) -> str:
+    """Explicitly create a session in the ADK Orchestrator."""
+    # The default app name is "agent" when run from the root of the service
+    url = f"{ORCHESTRATOR_URL}/apps/agent/users/{user_id}/sessions"
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url)
+        response.raise_for_status()
+        return response.json()["id"]
+
+async def query_orchestrator(user_id: str, message: str) -> str:
+    """Create a session and then query the Orchestrator using SSE."""
+    # 1. Create the session first (fixes 404 Session Not Found)
+    adk_session_id = await create_orchestrator_session(user_id)
+    
     request_body = {
         "appName": "agent",
         "userId": user_id,
-        "sessionId": session_id,
+        "sessionId": adk_session_id,
         "newMessage": {
             "role": "user",
             "parts": [{"text": message}]
@@ -45,7 +57,6 @@ async def query_orchestrator(user_id: str, session_id: str, message: str) -> str
     
     final_text = ""
     async with httpx.AsyncClient(timeout=600.0) as client:
-        # Use SSE to match the working reference project pattern
         async with client.stream("POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as response:
             if response.status_code != 200:
                 error_body = await response.aread()
@@ -72,8 +83,8 @@ async def run_council_orchestrator(session_id: str, question: str):
         doc_ref.update({"status": "in_progress", "updated_at": firestore.SERVER_TIMESTAMP})
 
         # Run Orchestrator
-        # We use the session_id as the ADK sessionId to keep it consistent
-        report = await query_orchestrator(user_id="council_user", session_id=session_id, message=question)
+        # We pass a consistent user_id; the adk_session_id is generated internally now
+        report = await query_orchestrator(user_id="council_user", message=question)
 
         # Final Update to Firestore
         doc_ref.update({
