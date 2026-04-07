@@ -34,7 +34,7 @@ async def record_citations_batch(
 ) -> str:
     """Record multiple citations at once to the database."""
     agent_name = "ResearchAgentC"
-    model_id = "gemini-2.5-pro"
+    model_id = "gemini-2.5-flash"
 
     try:
         sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"

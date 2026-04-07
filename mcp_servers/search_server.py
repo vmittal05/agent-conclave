@@ -43,7 +43,7 @@ async def search(req: SearchRequest):
     payload = {
         "api_key": TAVILY_API_KEY,
         "query": req.query,
-        "search_depth": "smart",
+        "search_depth": "basic",
         "max_results": req.top_k
     }
 

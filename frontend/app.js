@@ -13,6 +13,24 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.addEventListener('click', startResearch);
     newQueryBtn.addEventListener('click', resetUI);
 
+    function log(msg, author = 'System') {
+        console.log(`[${author}] ${msg}`);
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${author.replace(/\s+/g, '')}`;
+        
+        const authorSpan = document.createElement('span');
+        authorSpan.className = 'log-author';
+        authorSpan.innerText = `[${author}]`;
+        
+        const textSpan = document.createElement('span');
+        textSpan.innerText = msg;
+        
+        entry.appendChild(authorSpan);
+        entry.appendChild(textSpan);
+        activityLog.appendChild(entry);
+        activityLog.scrollTop = activityLog.scrollHeight;
+    }
+
     async function startResearch() {
         const question = queryInput.value.trim();
         if (!question) {
@@ -20,11 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // UI State: Loading
         inputSection.classList.add('hidden');
         statusSection.classList.remove('hidden');
         submitBtn.disabled = true;
-        activityLog.innerHTML = ''; // Clear old logs
+        activityLog.innerHTML = ''; 
         updateStatus("Initializing council...", 5);
 
         try {
@@ -34,7 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ message: question })
             });
 
-            if (!response.ok) throw new Error('Failed to start research conclave');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to start research conclave');
+            }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -53,16 +73,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (data.type === 'progress') {
                             handleProgress(data.text);
                         } else if (data.type === 'activity') {
-                            handleActivity(data.author, data.text);
+                            log(data.text, data.author);
                         } else if (data.type === 'result') {
                             showResult(data.text);
                         }
                     } catch (e) {
-                        console.error("Error parsing NDJSON chunk", e);
+                        console.error("Error parsing NDJSON chunk", e, line);
                     }
                 }
             }
         } catch (error) {
+            console.error("Research Conclave Error:", error);
             alert('Error: ' + error.message);
             resetUI();
         }
@@ -75,27 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (text.includes("Stage 4")) updateStatus("Synthesizing final report...", 90);
         else statusText.innerText = text;
         
-        // Add stage to log too
-        handleActivity("System", text);
-    }
-
-    function handleActivity(author, text) {
-        const entry = document.createElement('div');
-        entry.className = `log-entry ${author}`;
-        
-        const authorSpan = document.createElement('span');
-        authorSpan.className = 'log-author';
-        authorSpan.innerText = `[${author}]`;
-        
-        const textSpan = document.createElement('span');
-        textSpan.innerText = text;
-        
-        entry.appendChild(authorSpan);
-        entry.appendChild(textSpan);
-        activityLog.appendChild(entry);
-        
-        // Auto-scroll to bottom
-        activityLog.scrollTop = activityLog.scrollHeight;
+        log(text, 'System');
     }
 
     function updateStatus(text, percent) {
@@ -106,7 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function showResult(markdown) {
         statusSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
-        markdownResult.innerHTML = marked.parse(markdown);
+        
+        if (typeof marked !== 'undefined') {
+            markdownResult.innerHTML = marked.parse(markdown);
+        } else {
+            console.warn("Marked library not found, showing raw text.");
+            markdownResult.innerText = markdown;
+        }
     }
 
     function resetUI() {
