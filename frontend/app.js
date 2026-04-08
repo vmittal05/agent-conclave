@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusSection.classList.remove('hidden');
         submitBtn.disabled = true;
         activityLog.innerHTML = ''; 
-        updateStatus("Initializing council...", 5);
+        updateStatus("Initializing conclave...", 5);
 
         try {
             const response = await fetch('/api/chat_stream', {

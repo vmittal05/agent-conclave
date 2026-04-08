@@ -109,28 +109,29 @@ from httpx_sse import aconnect_sse
 # --- Models ---
 class ChatRequest(BaseModel):
     message: str
-    user_id: str = "council_user"
+    app = FastAPI(title="Multi-Agent Conclave API")
 
-# --- Endpoints ---
+    # ...
 
-@app.post("/api/chat_stream")
-async def chat_stream(request: ChatRequest):
-    """Streaming endpoint for the UI to monitor progress and get the final report."""
-    
-    # 1. Create session on orchestrator
-    adk_session_id = await create_orchestrator_session(request.user_id)
-    
-    # 2. Prepare request to orchestrator
-    request_body = {
-        "appName": "agent",
-        "userId": request.user_id,
-        "sessionId": adk_session_id,
-        "newMessage": {
-            "role": "user",
-            "parts": [{"text": request.message}]
-        },
-        "streaming": False
-    }
+    @app.post("/api/chat_stream")
+    async def chat_stream(request: ChatRequest):
+        """Streaming endpoint for the UI to monitor progress and get the final report."""
+
+        # 1. Create session on orchestrator
+        adk_session_id = await create_orchestrator_session(request.user_id)
+
+        # 2. Prepare request to orchestrator
+        request_body = {
+            "appName": "agent",
+            "userId": request.user_id,
+            "sessionId": adk_session_id,
+            "newMessage": {
+                "role": "user",
+                "parts": [{"text": request.message}]
+            },
+            "streaming": True  # FIXED: Must be True for real-time activity updates
+        }
+
 
     async def event_generator():
         final_text = ""
