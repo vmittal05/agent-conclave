@@ -9,6 +9,7 @@ export GCP_PROJECT_ID=$(gcloud config get-value project)
 export GOOGLE_CLOUD_PROJECT=$GCP_PROJECT_ID
 export GOOGLE_CLOUD_LOCATION="us-central1"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
+export MOCK_MODE=${MOCK_MODE:-false}
 
 echo "Starting Database MCP Server on port 8010..."
 export PORT=8010

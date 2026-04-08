@@ -1,8 +1,11 @@
 import os
 import httpx
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from google.adk import Agent
+from google.genai import types as genai_types
 from dotenv import load_dotenv
+import asyncio
+from google.adk.events import Event
 
 load_dotenv()
 
@@ -87,4 +90,34 @@ ResearchAgentC = Agent(
     tools=RESEARCH_TOOLS
 )
 
-root_agent = ResearchAgentC
+async def mock_run(ctx: Any) -> AsyncGenerator[Event, None]:
+    """Simulate agent work for UI testing."""
+    stages = [
+        "Analyzing research query...",
+        "Searching live web for BigQuery best practices...",
+        "Found 5 relevant sources. Extracting snippets...",
+        "Synthesizing findings into citations...",
+        "Recording citations to Cloud SQL..."
+    ]
+    for stage in stages:
+        content = genai_types.Content(parts=[genai_types.Part(text=stage)])
+        yield Event(author="ResearchAgentC", content=content)
+        await asyncio.sleep(2)
+    
+    final_content = genai_types.Content(parts=[genai_types.Part(text="I have successfully recorded 5 mock citations.")])
+    yield Event(author="ResearchAgentC", content=final_content)
+
+class ResearchAgentCWrapper:
+    def __init__(self, agent):
+        self.agent = agent
+        self.name = agent.name
+    
+    async def run_async(self, ctx: Any) -> AsyncGenerator[Event, None]:
+        if os.getenv("MOCK_MODE") == "true":
+            async for event in mock_run(ctx):
+                yield event
+        else:
+            async for event in self.agent.run_async(ctx):
+                yield event
+
+root_agent = ResearchAgentCWrapper(ResearchAgentC)

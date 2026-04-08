@@ -147,7 +147,15 @@ async def chat_stream(request: ChatRequest):
         
         yield json.dumps({"type": "result", "text": final_text.strip()}) + "\n"
 
-    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+    return StreamingResponse(
+        event_generator(), 
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no" # Disables buffering in many proxies
+        }
+    )
 
 # Serve UI
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
