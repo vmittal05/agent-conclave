@@ -29,6 +29,7 @@ def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     """Search Google Cloud Platform and developer documentation."""
     scoped_query = f"site:cloud.google.com {query}"
     return search_web(scoped_query)
+
 async def record_citations_batch(
     tool_context: Any,
     session_id: str,
@@ -38,7 +39,6 @@ async def record_citations_batch(
     if os.getenv("MOCK_MODE") == "true":
         return f"[MOCK] Recorded {len(citations)} citations for session {session_id}."
 
-    # USE THE PASSED session_id (Firestore UUID), NOT tool_context.session.id (ADK internal)
     db_session_id = session_id
     agent_name = "ResearchAgentA"
     model_id = "gemini-2.5-flash"
@@ -78,6 +78,7 @@ async def record_citations_batch(
                 "title": cit.get("title"),
                 "snippet": cit.get("snippet")
             }
+            # FIXED: Added json= keyword to ensure data is sent correctly
             httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit}, timeout=10.0)
             count += 1
 
@@ -97,7 +98,6 @@ ResearchAgentA = Agent(
         "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag. "
         "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted SESSION_ID."
     ),
-
     tools=RESEARCH_TOOLS
 )
 

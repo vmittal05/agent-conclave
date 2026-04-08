@@ -1,7 +1,7 @@
 import os
 import httpx
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from google.adk import Agent
 from google.genai import types as genai_types
 from google.adk.events import Event
@@ -39,12 +39,13 @@ async def record_citations_batch(
     if os.getenv("MOCK_MODE") == "true":
         return f"[MOCK] Recorded {len(citations)} citations for session {session_id}."
 
-    # USE THE PASSED session_id (Firestore UUID), NOT tool_context.session.id (ADK internal)
     db_session_id = session_id
+    # FIXED: Use correct agent name
     agent_name = "ResearchAgentB"
     model_id = "gemini-2.5-flash"
 
     try:
+        # 1. Ensure model_run exists
         sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
         res_check = httpx.post(f"{DB_URL}/tools/sql_query", json={
             "sql": sql_check, 
@@ -64,6 +65,7 @@ async def record_citations_batch(
             res_ins.raise_for_status()
             model_run_id = res_ins.json()["results"][0]["id"]
 
+        # 2. Record all citations in the batch
         count = 0
         for cit in citations:
             sql_cit = "INSERT INTO citations (model_run_id, source_url, source_type, title, snippet) VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)"
@@ -74,6 +76,7 @@ async def record_citations_batch(
                 "title": cit.get("title"),
                 "snippet": cit.get("snippet")
             }
+            # FIXED: Added json= keyword
             httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit}, timeout=10.0)
             count += 1
         return f"Successfully recorded {count} citations in batch for session {session_id}."
