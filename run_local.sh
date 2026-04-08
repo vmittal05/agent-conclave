@@ -9,6 +9,7 @@ export GCP_PROJECT_ID=$(gcloud config get-value project)
 export GOOGLE_CLOUD_PROJECT=$GCP_PROJECT_ID
 export GOOGLE_CLOUD_LOCATION="us-central1"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
+export MOCK_MODE=${MOCK_MODE:-false}
 
 echo "Starting Database MCP Server on port 8010..."
 export PORT=8010
@@ -24,48 +25,47 @@ SEARCH_MCP_PID=$!
 export MCP_DB_SERVER_URL=http://localhost:8010
 export MCP_SEARCH_SERVER_URL=http://localhost:8011
 
-# IMPORTANT: We run adk_app.py from the AGENTS directory so the loader finds the subfolders correctly.
-# Each command starts a service containing ONE agent.
+# Start each agent microservice
+# Note: ADK names the A2A app "agent" by default when run from the agent folder
 
 echo "Starting Research Agent A on port 8001..."
-pushd agents
-uv run adk_app.py --host 0.0.0.0 --port 8001 --a2a research_a &
+pushd agents/research_a
+uv run adk_app.py --host 0.0.0.0 --port 8001 --a2a . &
 RESEARCH_A_PID=$!
 popd
 
 echo "Starting Research Agent B on port 8002..."
-pushd agents
-uv run adk_app.py --host 0.0.0.0 --port 8002 --a2a research_b &
+pushd agents/research_b
+uv run adk_app.py --host 0.0.0.0 --port 8002 --a2a . &
 RESEARCH_B_PID=$!
 popd
 
 echo "Starting Research Agent C on port 8003..."
-pushd agents
-uv run adk_app.py --host 0.0.0.0 --port 8003 --a2a research_c &
+pushd agents/research_c
+uv run adk_app.py --host 0.0.0.0 --port 8003 --a2a . &
 RESEARCH_C_PID=$!
 popd
 
 echo "Starting Synthesizer Agent on port 8004..."
-pushd agents
-uv run adk_app.py --host 0.0.0.0 --port 8004 --a2a synthesizer &
+pushd agents/synthesizer
+uv run adk_app.py --host 0.0.0.0 --port 8004 --a2a . &
 SYNTHESIZER_PID=$!
 popd
 
-# Environment variables for Orchestrator to find sub-agents
-# Note: The app name in the URL matches the folder name
-export RESEARCH_A_AGENT_CARD_URL=http://localhost:8001/a2a/research_a/.well-known/agent-card.json
-export RESEARCH_B_AGENT_CARD_URL=http://localhost:8002/a2a/research_b/.well-known/agent-card.json
-export RESEARCH_C_AGENT_CARD_URL=http://localhost:8003/a2a/research_c/.well-known/agent-card.json
-export SYNTHESIZER_AGENT_CARD_URL=http://localhost:8004/a2a/synthesizer/.well-known/agent-card.json
+# All agents are at the /a2a/agent/ endpoint
+export RESEARCH_A_AGENT_CARD_URL=http://localhost:8001/a2a/agent/.well-known/agent-card.json
+export RESEARCH_B_AGENT_CARD_URL=http://localhost:8002/a2a/agent/.well-known/agent-card.json
+export RESEARCH_C_AGENT_CARD_URL=http://localhost:8003/a2a/agent/.well-known/agent-card.json
+export SYNTHESIZER_AGENT_CARD_URL=http://localhost:8004/a2a/agent/.well-known/agent-card.json
 
 echo "Starting Orchestrator Agent on port 8005..."
-pushd agents
-uv run adk_app.py --host 0.0.0.0 --port 8005 orchestrator &
+pushd agents/orchestrator
+uv run adk_app.py --host 0.0.0.0 --port 8005 . &
 ORCHESTRATOR_PID=$!
 popd
 
-echo "Waiting 25 seconds for all services to initialize..."
-sleep 25
+echo "Waiting 30 seconds for all services to initialize..."
+sleep 30
 
 echo "Starting Backend API on port 8080..."
 export ORCHESTRATOR_URL=http://localhost:8005
