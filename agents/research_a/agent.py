@@ -98,8 +98,7 @@ ResearchAgentA = Agent(
     tools=RESEARCH_TOOLS
 )
 
-import asyncio
-from google.adk.events import Event
+from google.adk.agents import BaseAgent
 
 async def mock_run(ctx: Any) -> AsyncGenerator[Event, None]:
     """Simulate agent work for UI testing."""
@@ -118,10 +117,10 @@ async def mock_run(ctx: Any) -> AsyncGenerator[Event, None]:
     final_content = genai_types.Content(parts=[genai_types.Part(text="I have successfully recorded 5 mock citations.")])
     yield Event(author="ResearchAgentA", content=final_content)
 
-class ResearchAgentAWrapper:
+class ResearchAgentAWrapper(BaseAgent):
     def __init__(self, agent):
+        super().__init__(name=agent.name, description=agent.description)
         self.agent = agent
-        self.name = agent.name
     
     async def run_async(self, ctx: Any) -> AsyncGenerator[Event, None]:
         if os.getenv("MOCK_MODE") == "true":
