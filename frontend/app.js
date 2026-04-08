@@ -10,10 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputSection = document.querySelector('.input-section');
 
     const cards = {
-        'research_a': document.getElementById('card-research_a'),
-        'research_b': document.getElementById('card-research_b'),
-        'research_c': document.getElementById('card-research_c'),
-        'synthesizer': document.getElementById('card-synthesizer')
+        'ResearchAgentA': document.getElementById('card-research_a'),
+        'ResearchAgentB': document.getElementById('card-research_b'),
+        'ResearchAgentC': document.getElementById('card-research_c'),
+        'SynthesizerAgent': document.getElementById('card-synthesizer')
     };
 
     submitBtn.addEventListener('click', startResearch);
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusSection.classList.remove('hidden');
         submitBtn.disabled = true;
         resetCards();
-        updateStatus("Initializing conclave...", 5);
+        updateStatus("🏛️ Summoning the Model Conclave...", 5);
 
         try {
             const response = await fetch('/api/chat_stream', {
@@ -64,7 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const data = JSON.parse(line);
                         if (data.type === 'progress') {
-                            handleProgress(data.text);
+                            handleStageChange(data.text);
+                        } else if (data.type === 'activity') {
+                            handleActivity(data.author, data.text);
                         } else if (data.type === 'result') {
                             showResult(data.text);
                         }
@@ -79,22 +81,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function handleProgress(text) {
+    function handleStageChange(text) {
         if (text.includes("Stage 1")) {
-            updateStatus("Agent A (Claude) is researching...", 20);
-            updateCard('research_a', 'active', 'Researching live web...');
+            updateStatus("🧪 Stage 1: Agent A is performing primary web research...", 20);
+            updateCard('ResearchAgentA', 'active', 'Initializing...');
         } else if (text.includes("Stage 2")) {
-            updateStatus("Agent B (GPT) is researching...", 45);
-            updateCard('research_a', 'completed', '5 Citations Recorded');
-            updateCard('research_b', 'active', 'Analyzing trends...');
+            updateStatus("📈 Stage 2: Agent B is conducting analytical trend verification...", 45);
+            updateCard('ResearchAgentA', 'completed', '5 Citations Verified');
+            updateCard('ResearchAgentB', 'active', 'Initializing...');
         } else if (text.includes("Stage 3")) {
-            updateStatus("Agent C (Gemini) is researching...", 70);
-            updateCard('research_b', 'completed', '5 Citations Recorded');
-            updateCard('research_c', 'active', 'Technical verification...');
+            updateStatus("🔧 Stage 3: Agent C is executing technical feasibility checks...", 70);
+            updateCard('ResearchAgentB', 'completed', '5 Citations Verified');
+            updateCard('ResearchAgentC', 'active', 'Initializing...');
         } else if (text.includes("Stage 4")) {
-            updateStatus("Synthesizing final report...", 90);
-            updateCard('research_c', 'completed', '5 Citations Recorded');
-            updateCard('synthesizer', 'active', 'Generating report...');
+            updateStatus("🏛️ Stage 4: Synthesizing consensus and final report...", 90);
+            updateCard('ResearchAgentC', 'completed', '5 Citations Verified');
+            updateCard('SynthesizerAgent', 'active', 'Synthesizing...');
+        }
+    }
+
+    function handleActivity(author, text) {
+        // Update the main status line with the live agent thought/action
+        const cleanText = text.replace(/\[Stage.*?\]/g, '').trim();
+        statusText.innerHTML = `<span class="live-tag">LIVE</span> [${author}] ${cleanText}`;
+        
+        // Update the status on the card specifically
+        if (cards[author]) {
+            cards[author].querySelector('.card-status').innerText = cleanText;
         }
     }
 
@@ -104,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showResult(markdown) {
-        updateCard('synthesizer', 'completed', 'Report Ready');
+        updateCard('SynthesizerAgent', 'completed', 'Final Report Published');
         statusSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
         markdownResult.innerHTML = marked.parse(markdown);
