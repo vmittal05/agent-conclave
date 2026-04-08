@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Install uv via pip (more reliable in Cloud Build than ghcr.io)
+RUN pip install uv
 
 # Install the project into /app
 COPY . /app
