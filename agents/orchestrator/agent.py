@@ -36,20 +36,26 @@ class ConclaveOrchestrator(BaseAgent):
             return Event(author=author, content=content, actions=EventActions(skip_summarization=True))
 
         is_mock = os.getenv("MOCK_MODE") == "true"
+        
+        # EXTRACT CLEAN DATA
+        raw_msg = ctx.user_content.parts[0].text
+        # Input format from main.py: "Session ID: {session_id}. Question: {question}"
+        # We ensure it is passed correctly to sub-agents
+        formatted_message = raw_msg 
 
         async def run_stage(agent, stage_num, agent_label):
             yield create_msg_event(f"[Stage {stage_num}/4] {agent_label} is initializing...")
             await asyncio.sleep(1)
             
             if is_mock:
-                yield create_msg_event(f"Searching for live data related to the query...", author=agent.name)
-                await asyncio.sleep(3)
-                yield create_msg_event(f"Analyzing 5 identified citations...", author=agent.name)
-                await asyncio.sleep(3)
-                yield create_msg_event(f"Research phase for {agent_label} completed.", author=agent.name)
+                yield create_msg_event(f"Searching for live data...", author=agent.name)
+                await asyncio.sleep(2)
+                yield create_msg_event(f"Recording 5 mock citations...", author=agent.name)
+                await asyncio.sleep(2)
             else:
-                yield create_msg_event(f"Performing deep research using Gemini 2.5 Flash...", author=agent.name)
-                async for event in agent.run_async(ctx):
+                yield create_msg_event(f"Performing deep live research...", author=agent.name)
+                # FIX: Pass the STRING message, not the context object
+                async for event in agent.run_async(formatted_message):
                     yield event
 
         # Execute Stages
@@ -60,11 +66,11 @@ class ConclaveOrchestrator(BaseAgent):
         # Synthesis
         yield create_msg_event("[Stage 4/4] Synthesizing final report...")
         if is_mock:
-            await asyncio.sleep(2)
-            report = "## Mock Model Conclave Report\n\nThis is a simulated report generated in **Mock Mode**. All agents completed their research tasks and recorded 15 total citations to the database."
+            report = "## Mock Model Conclave Report\n\nGenerated in **Mock Mode**. Data saved to SQL successfully."
             yield create_msg_event(report, author="SynthesizerAgent")
         else:
-            async for event in synthesizer.run_async(ctx):
+            # FIX: Pass the STRING message
+            async for event in synthesizer.run_async(formatted_message):
                 yield event
 
 root_agent = ConclaveOrchestrator()

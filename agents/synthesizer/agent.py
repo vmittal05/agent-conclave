@@ -26,12 +26,12 @@ SynthesizerAgent = Agent(
     description="Synthesizes research findings into a report.",
     instruction=(
         "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n\n"
-        "1. Extract the 'Session ID' from the start of the prompt.\n"
-        "2. Call 'get_session_citations' using that exact Session ID.\n"
+        "1. Extract the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
+        "2. Call 'get_session_citations' using that exact UUID.\n"
         "3. Produce the final report strictly matching this format:\n\n"
         "## Model Council Synthesis Report\n\n"
         "### Original Question\n"
-        "[Restate the user's question]\n\n"
+        "[Restate the user's question from the 'QUESTION' tag]\n\n"
         "### 1. Where Models Agree\n"
         "Present as a markdown table withoriginal citations from previous responses. Reuse original source URLs as citation markers.\n\n"
         "### 2. Where Models Disagree\n"

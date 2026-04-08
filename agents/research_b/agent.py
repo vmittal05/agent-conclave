@@ -86,9 +86,9 @@ ResearchAgentB = Agent(
     description="An analytical researcher (Agent B).",
     instruction=(
         "You are an analytical researcher (Agent B). Perform focused research using Gemini 2.5 Flash. "
-        "1. Extract the 'Session ID' from the start of the user prompt. "
-        "2. Gather exactly 5 high-quality citations from the live web. "
-        "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted Session ID."
+        "1. Identify the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag). "
+        "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag. "
+        "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted SESSION_ID."
     ),
     tools=RESEARCH_TOOLS
 )

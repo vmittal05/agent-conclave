@@ -86,7 +86,7 @@ async def run_council_orchestrator(session_id: str, question: str):
         doc_ref = db.collection("sessions").document(session_id)
         doc_ref.update({"status": "in_progress", "updated_at": firestore.SERVER_TIMESTAMP})
 
-        orchestrator_prompt = f"Session ID: {session_id}. Question: {question}"
+        orchestrator_prompt = f"SESSION_ID: {session_id} | QUESTION: {question}"
         report = await query_orchestrator(user_id="council_user", message=orchestrator_prompt)
 
         doc_ref.update({
