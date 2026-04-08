@@ -8,6 +8,8 @@ from google.genai import types as genai_types
 from google.adk.events import Event
 from dotenv import load_dotenv
 
+from authenticated_httpx import create_authenticated_client
+
 load_dotenv()
 
 # Setup logging
@@ -21,9 +23,10 @@ DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
 # --- Common Research Tools ---
 
 async def search_web(query: str) -> List[Dict[str, Any]]:
-    """Search the web for academic and general sources."""
+    """Search the web for academic and general sources with authentication."""
     try:
-        async with httpx.AsyncClient() as client:
+        # Use authenticated client for Cloud Run service-to-service
+        async with create_authenticated_client(SEARCH_URL) as client:
             response = await client.post(f"{SEARCH_URL}/tools/search", json={"query": query}, timeout=30.0)
             response.raise_for_status()
             return response.json().get("results", [])
@@ -41,7 +44,7 @@ async def record_citations_batch(
     session_id: str,
     citations: List[Dict[str, str]]
 ) -> str:
-    """Record multiple citations at once to the database with confirmation."""
+    """Record multiple citations at once to the database with authentication."""
     if os.getenv("MOCK_MODE") == "true":
         return f"[MOCK] Recorded {len(citations)} citations for session {session_id}."
 
@@ -50,7 +53,8 @@ async def record_citations_batch(
     model_id = "gemini-2.5-flash"
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        # Use authenticated client for Cloud Run service-to-service
+        async with create_authenticated_client(DB_URL) as client:
             # 1. Ensure model_run exists
             sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
             res_check = await client.post(f"{DB_URL}/tools/sql_query", json={
@@ -85,7 +89,6 @@ async def record_citations_batch(
                     "title": cit.get("title", "No Title"),
                     "snippet": cit.get("snippet") or cit.get("content")
                 }
-                # FIXED: Added await to ensure the database actually receives the data
                 res_cit = await client.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit})
                 res_cit.raise_for_status()
                 count += 1

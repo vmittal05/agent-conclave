@@ -154,39 +154,42 @@ async def chat_stream(request: ChatRequest):
 
     async def event_generator():
         final_text = ""
-        async with httpx.AsyncClient(timeout=600.0) as client:
-            async with aconnect_sse(client, "POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as event_source:
-                async for server_event in event_source.aiter_sse():
-                    event = server_event.json()
-                    author = event.get("author", "Agent")
-                    
-                    if "content" in event and event["content"]:
-                        content = genai_types.Content.model_validate(event["content"])
-                        text = "".join([p.text for p in content.parts if p.text]) # type: ignore
-                        
-                        if not text: continue
-
-                        if "[Stage" in text:
-                            yield json.dumps({"type": "progress", "text": text}) + "\n"
-                        elif author == "SynthesizerAgent":
-                            final_text += text
-                            yield json.dumps({"type": "activity", "author": author, "text": "Drafting final synthesis..."}) + "\n"
-                        else:
-                            display_text = (text[:100] + '...') if len(text) > 100 else text
-                            yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
-        
-        # 4. Final update to Firestore when done
-        if db:
+        # Use the authenticated client to get the Identity Token for Cloud Run
+        async with create_authenticated_client(ORCHESTRATOR_URL) as client:
             try:
-                db.collection("sessions").document(session_id).update({
-                    "status": "completed",
-                    "report_markdown": final_text.strip(),
-                    "progress": {"completed_models": 3, "total_models": 3},
-                    "updated_at": firestore.SERVER_TIMESTAMP
-                })
-            except Exception as e:
-                print(f"--- Warning: Failed to update Firestore: {e} ---")
+                # We manually call the POST request first to check for errors before handing to aconnect_sse
+                async with client.stream("POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body, timeout=600.0) as response:
+                    if response.status_code != 200:
+                        error_text = await response.aread()
+                        yield json.dumps({"type": "progress", "text": f"❌ Orchestrator Error ({response.status_code}): {error_text.decode()[:100]}"}) + "\n"
+                        return
 
+                    # Now safely wrap the response in aconnect_sse logic
+                    from httpx_sse import ServerSentEvent
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            event = json.loads(data)
+                            author = event.get("author", "Agent")
+                            
+                            if "content" in event and event["content"]:
+                                content = genai_types.Content.model_validate(event["content"])
+                                text = "".join([p.text for p in content.parts if p.text]) # type: ignore
+                                
+                                if not text: continue
+
+                                if "[Stage" in text:
+                                    yield json.dumps({"type": "progress", "text": text}) + "\n"
+                                elif author == "SynthesizerAgent":
+                                    final_text += text
+                                    yield json.dumps({"type": "activity", "author": author, "text": "Drafting final synthesis..."}) + "\n"
+                                else:
+                                    display_text = (text[:100] + '...') if len(text) > 100 else text
+                                    yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
+            except Exception as e:
+                yield json.dumps({"type": "progress", "text": f"❌ Connection Error: {str(e)}"}) + "\n"
+                return
+        
         yield json.dumps({"type": "result", "text": final_text.strip(), "session_id": session_id}) + "\n"
 
     return StreamingResponse(

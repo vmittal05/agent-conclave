@@ -34,7 +34,7 @@ SEARCH_MCP_URL=$(gcloud run services describe conclave-mcp-search --region $REGI
 
 # --- 2. Research & Synthesizer Agents ---
 
-COMMON_AGENT_VARS="MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_GENAI_USE_VERTEXAI=True"
+COMMON_AGENT_VARS="MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True"
 
 echo "Deploying Research Agent A..."
 gcloud run deploy conclave-agent-a --source agents/research_a --set-env-vars "$COMMON_AGENT_VARS" --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated

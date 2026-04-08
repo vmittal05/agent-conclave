@@ -2,11 +2,13 @@ import os
 import httpx
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from google.adk import Agent
 from google.genai import types as genai_types
 from google.adk.events import Event
 from dotenv import load_dotenv
+
+from authenticated_httpx import create_authenticated_client
 
 load_dotenv()
 
@@ -21,9 +23,9 @@ DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
 # --- Common Research Tools ---
 
 async def search_web(query: str) -> List[Dict[str, Any]]:
-    """Search the web for academic and general sources."""
+    """Search the web for academic and general sources with authentication."""
     try:
-        async with httpx.AsyncClient() as client:
+        async with create_authenticated_client(SEARCH_URL) as client:
             response = await client.post(f"{SEARCH_URL}/tools/search", json={"query": query}, timeout=30.0)
             response.raise_for_status()
             return response.json().get("results", [])
@@ -41,7 +43,7 @@ async def record_citations_batch(
     session_id: str,
     citations: List[Dict[str, str]]
 ) -> str:
-    """Record multiple citations at once to the database with confirmation."""
+    """Record multiple citations at once to the database with authentication."""
     if os.getenv("MOCK_MODE") == "true":
         return f"[MOCK] Recorded {len(citations)} citations for session {session_id}."
 
@@ -50,7 +52,7 @@ async def record_citations_batch(
     model_id = "gemini-2.5-flash"
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with create_authenticated_client(DB_URL) as client:
             # 1. Ensure model_run exists
             sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
             res_check = await client.post(f"{DB_URL}/tools/sql_query", json={
@@ -74,10 +76,7 @@ async def record_citations_batch(
             # 2. Record all citations in the batch
             count = 0
             for cit in citations:
-                sql_cit = """
-                    INSERT INTO citations (model_run_id, source_url, source_type, title, snippet)
-                    VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)
-                """
+                sql_cit = "INSERT INTO citations (model_run_id, source_url, source_type, title, snippet) VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)"
                 params_cit = {
                     "model_run_id": model_run_id,
                     "source_url": cit.get("source_url") or cit.get("url"),
@@ -88,7 +87,6 @@ async def record_citations_batch(
                 res_cit = await client.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit})
                 res_cit.raise_for_status()
                 count += 1
-
             return f"SUCCESS: Verified {count} citations saved to Cloud SQL for session {db_session_id}."
     except Exception as e:
         logger.error(f"DB Error in Agent B: {str(e)}")
