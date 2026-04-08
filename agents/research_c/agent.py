@@ -39,6 +39,8 @@ async def record_citations_batch(
     if os.getenv("MOCK_MODE") == "true":
         return f"[MOCK] Recorded {len(citations)} citations for session {session_id}."
 
+    # USE THE PASSED session_id (Firestore UUID), NOT tool_context.session.id (ADK internal)
+    db_session_id = session_id
     agent_name = "ResearchAgentC"
     model_id = "gemini-2.5-flash"
 
@@ -46,7 +48,7 @@ async def record_citations_batch(
         sql_check = "SELECT id FROM model_runs WHERE session_id = :session_id AND agent_name = :agent_name LIMIT 1"
         res_check = httpx.post(f"{DB_URL}/tools/sql_query", json={
             "sql": sql_check, 
-            "params": {"session_id": session_id, "agent_name": agent_name}
+            "params": {"session_id": db_session_id, "agent_name": agent_name}
         }, timeout=10.0)
         res_check.raise_for_status()
         rows = res_check.json().get("results", [])
@@ -57,7 +59,7 @@ async def record_citations_batch(
             sql_ins = "INSERT INTO model_runs (session_id, agent_name, model_id) VALUES (:session_id, :agent_name, :model_id) RETURNING id"
             res_ins = httpx.post(f"{DB_URL}/tools/sql_query", json={
                 "sql": sql_ins,
-                "params": {"session_id": session_id, "agent_name": agent_name, "model_id": model_id}
+                "params": {"session_id": db_session_id, "agent_name": agent_name, "model_id": model_id}
             }, timeout=10.0)
             res_ins.raise_for_status()
             model_run_id = res_ins.json()["results"][0]["id"]

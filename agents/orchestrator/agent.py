@@ -37,11 +37,9 @@ class ConclaveOrchestrator(BaseAgent):
 
         is_mock = os.getenv("MOCK_MODE") == "true"
         
-        # EXTRACT CLEAN DATA
-        raw_msg = ctx.user_content.parts[0].text
-        # Input format from main.py: "Session ID: {session_id}. Question: {question}"
-        # We ensure it is passed correctly to sub-agents
-        formatted_message = raw_msg 
+        # EXTRACT PROMPT STRING
+        # This contains: "SESSION_ID: [UUID] | QUESTION: [Text]"
+        user_prompt = ctx.user_content.parts[0].text
 
         async def run_stage(agent, stage_num, agent_label):
             yield create_msg_event(f"[Stage {stage_num}/4] {agent_label} is initializing...")
@@ -54,8 +52,9 @@ class ConclaveOrchestrator(BaseAgent):
                 await asyncio.sleep(2)
             else:
                 yield create_msg_event(f"Performing deep live research...", author=agent.name)
-                # FIX: Pass the STRING message, not the context object
-                async for event in agent.run_async(formatted_message):
+                # FIX: Pass the raw prompt STRING as the first argument.
+                # In ADK, this is the most reliable way to ensure the text is sent to the remote agent.
+                async for event in agent.run_async(user_prompt):
                     yield event
 
         # Execute Stages
@@ -69,8 +68,8 @@ class ConclaveOrchestrator(BaseAgent):
             report = "## Mock Model Conclave Report\n\nGenerated in **Mock Mode**. Data saved to SQL successfully."
             yield create_msg_event(report, author="SynthesizerAgent")
         else:
-            # FIX: Pass the STRING message
-            async for event in synthesizer.run_async(formatted_message):
+            # FIX: Pass raw prompt string to synthesizer
+            async for event in synthesizer.run_async(user_prompt):
                 yield event
 
 root_agent = ConclaveOrchestrator()
