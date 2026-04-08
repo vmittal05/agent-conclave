@@ -1,30 +1,107 @@
 steps:
-  # 1. Build Backend Image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/conclave-backend', '.']
+  # --- 1. Tool Servers (MCP) ---
 
-  # 2. Push Backend Image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/conclave-backend']
+  # Database MCP
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'conclave-mcp-db'
+      - '--source'
+      - '.'
+      - '--command'
+      - 'python'
+      - '--args'
+      - 'mcp_servers/db_server.py'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'GCP_PROJECT_ID=$PROJECT_ID,CLOUD_SQL_INSTANCE_CONNECTION_NAME=$PROJECT_ID:us-central1:postgres,CLOUD_SQL_DB_NAME=conclave_db,CLOUD_SQL_DB_USER=postgres'
+      - '--set-secrets'
+      - 'CLOUD_SQL_DB_PASSWORD=CLOUD_SQL_DB_PASSWORD:latest'
+      - '--no-allow-unauthenticated'
 
-  # 3. Deploy Backend to Cloud Run
+  # Search MCP
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'conclave-mcp-search'
+      - '--source'
+      - '.'
+      - '--command'
+      - 'python'
+      - '--args'
+      - 'mcp_servers/search_server.py'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-secrets'
+      - 'TAVILY_API_KEY=TAVILY_API_KEY:latest'
+      - '--no-allow-unauthenticated'
+
+  # --- 2. Research & Synthesizer Agents ---
+
+  # Agent A
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'conclave-agent-a', '--source', 'agents/research_a', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+
+  # Agent B
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'conclave-agent-b', '--source', 'agents/research_b', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+
+  # Agent C
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'conclave-agent-c', '--source', 'agents/research_c', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+
+  # Synthesizer
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'conclave-agent-synth', '--source', 'agents/synthesizer', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+
+  # --- 3. Orchestrator & Backend ---
+
+  # Orchestrator
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'conclave-orchestrator'
+      - '--source'
+      - 'agents/orchestrator'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'RESEARCH_A_AGENT_CARD_URL=https://conclave-agent-a-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,RESEARCH_B_AGENT_CARD_URL=https://conclave-agent-b-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,RESEARCH_C_AGENT_CARD_URL=https://conclave-agent-c-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,SYNTHESIZER_AGENT_CARD_URL=https://conclave-agent-synth-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json'
+      - '--no-allow-unauthenticated'
+
+  # Backend Gateway
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
       - 'conclave-backend'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/conclave-backend'
+      - '--source'
+      - '.'
       - '--region'
       - 'us-central1'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
       - '--service-account'
       - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
       - '--set-env-vars'
-      - 'GCP_PROJECT_ID=$PROJECT_ID,COUNCIL_TOTAL_MODELS=3,PORT=8080'
+      - 'ORCHESTRATOR_URL=https://conclave-orchestrator-qn3qzmNm-uc.a.run.app,GCP_PROJECT_ID=$PROJECT_ID'
+      - '--allow-unauthenticated'
 
-images:
-  - 'gcr.io/$PROJECT_ID/conclave-backend'
+options:
+  logging: CLOUD_LOGGING_ONLY

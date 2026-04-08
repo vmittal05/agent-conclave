@@ -38,7 +38,18 @@ gcloud services enable \
 
 ---
 
-## 3. Deployment Steps
+## 3. Automated Deployment (Recommended)
+The most reliable way to deploy the entire Model Conclave system is using the provided `deploy.sh` script. This script handles the sequential deployment of all 8 services and automatically configures the inter-service URL links.
+
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+---
+
+## 4. Manual Deployment Steps
+If you prefer to deploy services individually (e.g., for updates), follow these steps:
 
 ### Step 1: Deploy MCP Servers
 Deploy the tool servers first so agents can connect to them.
