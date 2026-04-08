@@ -18,7 +18,13 @@ load_dotenv()
 app = FastAPI(title="Multi-Agent Conclave API")
 
 # Initialize Firestore
-db = firestore.Client(project=os.getenv("GCP_PROJECT_ID"))
+FIRESTORE_PROJECT_ID = os.getenv("GCP_FIRESTORE_PROJECT_ID") or os.getenv("GCP_PROJECT_ID")
+try:
+    db = firestore.Client(project=FIRESTORE_PROJECT_ID)
+    print(f"--- Firestore initialized for project: {FIRESTORE_PROJECT_ID} ---")
+except Exception as e:
+    print(f"--- ERROR: Failed to initialize Firestore: {e} ---")
+    db = None
 
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:8005").rstrip("/")
 
