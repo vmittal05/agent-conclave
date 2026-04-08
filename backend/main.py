@@ -5,10 +5,13 @@ import httpx
 from datetime import datetime
 from typing import Dict, Any, AsyncGenerator
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from google.cloud import firestore
 from google.genai import types as genai_types
 from dotenv import load_dotenv
+from httpx_sse import aconnect_sse
 
 load_dotenv()
 
@@ -28,11 +31,14 @@ class SessionResponse(BaseModel):
     status: str
     created_at: str
 
+class ChatRequest(BaseModel):
+    message: str
+    user_id: str = "council_user"
+
 # --- Orchestrator Interaction ---
 
 async def create_orchestrator_session(user_id: str) -> str:
     """Explicitly create a session in the ADK Orchestrator."""
-    # The default app name is "agent" when run from the root of the service
     url = f"{ORCHESTRATOR_URL}/apps/agent/users/{user_id}/sessions"
     async with httpx.AsyncClient() as client:
         response = await client.post(url)
@@ -41,7 +47,6 @@ async def create_orchestrator_session(user_id: str) -> str:
 
 async def query_orchestrator(user_id: str, message: str) -> str:
     """Create a session and then query the Orchestrator using SSE."""
-    # 1. Create the session first (fixes 404 Session Not Found)
     adk_session_id = await create_orchestrator_session(user_id)
     
     request_body = {
@@ -78,16 +83,12 @@ async def query_orchestrator(user_id: str, message: str) -> str:
 async def run_council_orchestrator(session_id: str, question: str):
     """Background task to execute the Orchestrator workflow."""
     try:
-        # Update Firestore to 'in_progress'
         doc_ref = db.collection("sessions").document(session_id)
         doc_ref.update({"status": "in_progress", "updated_at": firestore.SERVER_TIMESTAMP})
 
-        # Run Orchestrator
-        # We include the session_id in the prompt so the Synthesizer knows which citations to query
         orchestrator_prompt = f"Session ID: {session_id}. Question: {question}"
         report = await query_orchestrator(user_id="council_user", message=orchestrator_prompt)
 
-        # Final Update to Firestore
         doc_ref.update({
             "status": "completed",
             "progress": {"completed_models": 3, "total_models": 3},
@@ -102,36 +103,24 @@ async def run_council_orchestrator(session_id: str, question: str):
             "updated_at": firestore.SERVER_TIMESTAMP
         })
 
-from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from httpx_sse import aconnect_sse
+# --- Endpoints ---
 
-# --- Models ---
-class ChatRequest(BaseModel):
-    message: str
-    app = FastAPI(title="Multi-Agent Conclave API")
-
-    # ...
-
-    @app.post("/api/chat_stream")
-    async def chat_stream(request: ChatRequest):
-        """Streaming endpoint for the UI to monitor progress and get the final report."""
-
-        # 1. Create session on orchestrator
-        adk_session_id = await create_orchestrator_session(request.user_id)
-
-        # 2. Prepare request to orchestrator
-        request_body = {
-            "appName": "agent",
-            "userId": request.user_id,
-            "sessionId": adk_session_id,
-            "newMessage": {
-                "role": "user",
-                "parts": [{"text": request.message}]
-            },
-            "streaming": True  # FIXED: Must be True for real-time activity updates
-        }
-
+@app.post("/api/chat_stream")
+async def chat_stream(request: ChatRequest):
+    """Streaming endpoint for the UI to monitor progress and get the final report."""
+    
+    adk_session_id = await create_orchestrator_session(request.user_id)
+    
+    request_body = {
+        "appName": "agent",
+        "userId": request.user_id,
+        "sessionId": adk_session_id,
+        "newMessage": {
+            "role": "user",
+            "parts": [{"text": request.message}]
+        },
+        "streaming": True
+    }
 
     async def event_generator():
         final_text = ""
@@ -148,20 +137,14 @@ class ChatRequest(BaseModel):
                         if not text: continue
 
                         if "[Stage" in text:
-                            # Explicit stage progress
                             yield json.dumps({"type": "progress", "text": text}) + "\n"
                         elif author == "SynthesizerAgent":
-                            # Final report accumulation
                             final_text += text
-                            # Also show activity for synthesizer
                             yield json.dumps({"type": "activity", "author": author, "text": "Drafting final synthesis..."}) + "\n"
                         else:
-                            # Pass through research agent activity (thoughts/tool updates)
-                            # Truncate long thoughts for the activity log
                             display_text = (text[:100] + '...') if len(text) > 100 else text
                             yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
         
-        # Send final result
         yield json.dumps({"type": "result", "text": final_text.strip()}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
