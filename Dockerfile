@@ -13,7 +13,7 @@ RUN pip install poetry
 
 # Copy project files
 COPY pyproject.toml README.md ./
-RUN poetry config virtualenvs.create false && poetry install --no-dev
+RUN poetry config virtualenvs.create false && poetry install --without dev
 
 COPY . .
 
