@@ -118,7 +118,28 @@ async def run_council_orchestrator(session_id: str, question: str):
 async def chat_stream(request: ChatRequest):
     """Streaming endpoint for the UI to monitor progress and get the final report."""
     
+    # 1. Initialize session tracking in Firestore
+    session_id = str(uuid.uuid4())
+    if db:
+        try:
+            doc_ref = db.collection("sessions").document(session_id)
+            doc_ref.set({
+                "session_id": session_id,
+                "question": request.message,
+                "status": "in_progress",
+                "progress": {"completed_models": 0, "total_models": 3},
+                "created_at": firestore.SERVER_TIMESTAMP,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            })
+        except Exception as e:
+            print(f"--- Warning: Failed to create Firestore doc: {e} ---")
+
+    # 2. Create session on orchestrator
     adk_session_id = await create_orchestrator_session(request.user_id)
+    
+    # 3. Prepare request to orchestrator
+    # Pass the actual session_id so agents can record citations correctly
+    orchestrator_prompt = f"SESSION_ID: {session_id} | QUESTION: {request.message}"
     
     request_body = {
         "appName": "agent",
@@ -126,7 +147,7 @@ async def chat_stream(request: ChatRequest):
         "sessionId": adk_session_id,
         "newMessage": {
             "role": "user",
-            "parts": [{"text": request.message}]
+            "parts": [{"text": orchestrator_prompt}]
         },
         "streaming": True
     }
@@ -154,7 +175,19 @@ async def chat_stream(request: ChatRequest):
                             display_text = (text[:100] + '...') if len(text) > 100 else text
                             yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
         
-        yield json.dumps({"type": "result", "text": final_text.strip()}) + "\n"
+        # 4. Final update to Firestore when done
+        if db:
+            try:
+                db.collection("sessions").document(session_id).update({
+                    "status": "completed",
+                    "report_markdown": final_text.strip(),
+                    "progress": {"completed_models": 3, "total_models": 3},
+                    "updated_at": firestore.SERVER_TIMESTAMP
+                })
+            except Exception as e:
+                print(f"--- Warning: Failed to update Firestore: {e} ---")
+
+        yield json.dumps({"type": "result", "text": final_text.strip(), "session_id": session_id}) + "\n"
 
     return StreamingResponse(
         event_generator(), 
