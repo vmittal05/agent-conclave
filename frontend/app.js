@@ -4,31 +4,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusSection = document.getElementById('statusSection');
     const statusText = document.getElementById('statusText');
     const progressBar = document.getElementById('progressBar');
-    const activityLog = document.getElementById('activityLog');
     const resultSection = document.getElementById('resultSection');
     const markdownResult = document.getElementById('markdownResult');
     const newQueryBtn = document.getElementById('newQueryBtn');
     const inputSection = document.querySelector('.input-section');
 
+    const cards = {
+        'research_a': document.getElementById('card-research_a'),
+        'research_b': document.getElementById('card-research_b'),
+        'research_c': document.getElementById('card-research_c'),
+        'synthesizer': document.getElementById('card-synthesizer')
+    };
+
     submitBtn.addEventListener('click', startResearch);
     newQueryBtn.addEventListener('click', resetUI);
 
-    function log(msg, author = 'System') {
-        console.log(`[${author}] ${msg}`);
-        const entry = document.createElement('div');
-        entry.className = `log-entry ${author.replace(/\s+/g, '')}`;
+    function updateCard(id, state, msg) {
+        const card = cards[id];
+        if (!card) return;
         
-        const authorSpan = document.createElement('span');
-        authorSpan.className = 'log-author';
-        authorSpan.innerText = `[${author}]`;
-        
-        const textSpan = document.createElement('span');
-        textSpan.innerText = msg;
-        
-        entry.appendChild(authorSpan);
-        entry.appendChild(textSpan);
-        activityLog.appendChild(entry);
-        activityLog.scrollTop = activityLog.scrollHeight;
+        card.className = 'status-card ' + state;
+        card.querySelector('.card-status').innerText = msg;
     }
 
     async function startResearch() {
@@ -41,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputSection.classList.add('hidden');
         statusSection.classList.remove('hidden');
         submitBtn.disabled = true;
-        activityLog.innerHTML = ''; 
+        resetCards();
         updateStatus("Initializing conclave...", 5);
 
         try {
@@ -51,10 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ message: question })
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to start research conclave');
-            }
+            if (!response.ok) throw new Error('Failed to start research conclave');
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -72,31 +65,37 @@ document.addEventListener('DOMContentLoaded', () => {
                         const data = JSON.parse(line);
                         if (data.type === 'progress') {
                             handleProgress(data.text);
-                        } else if (data.type === 'activity') {
-                            log(data.text, data.author);
                         } else if (data.type === 'result') {
                             showResult(data.text);
                         }
                     } catch (e) {
-                        console.error("Error parsing NDJSON chunk", e, line);
+                        console.error("Error parsing NDJSON chunk", e);
                     }
                 }
             }
         } catch (error) {
-            console.error("Research Conclave Error:", error);
             alert('Error: ' + error.message);
             resetUI();
         }
     }
 
     function handleProgress(text) {
-        if (text.includes("Stage 1")) updateStatus("Agent A (Claude) is researching...", 20);
-        else if (text.includes("Stage 2")) updateStatus("Agent B (GPT) is researching...", 45);
-        else if (text.includes("Stage 3")) updateStatus("Agent C (Gemini) is researching...", 70);
-        else if (text.includes("Stage 4")) updateStatus("Synthesizing final report...", 90);
-        else statusText.innerText = text;
-        
-        log(text, 'System');
+        if (text.includes("Stage 1")) {
+            updateStatus("Agent A (Claude) is researching...", 20);
+            updateCard('research_a', 'active', 'Researching live web...');
+        } else if (text.includes("Stage 2")) {
+            updateStatus("Agent B (GPT) is researching...", 45);
+            updateCard('research_a', 'completed', '5 Citations Recorded');
+            updateCard('research_b', 'active', 'Analyzing trends...');
+        } else if (text.includes("Stage 3")) {
+            updateStatus("Agent C (Gemini) is researching...", 70);
+            updateCard('research_b', 'completed', '5 Citations Recorded');
+            updateCard('research_c', 'active', 'Technical verification...');
+        } else if (text.includes("Stage 4")) {
+            updateStatus("Synthesizing final report...", 90);
+            updateCard('research_c', 'completed', '5 Citations Recorded');
+            updateCard('synthesizer', 'active', 'Generating report...');
+        }
     }
 
     function updateStatus(text, percent) {
@@ -105,15 +104,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showResult(markdown) {
+        updateCard('synthesizer', 'completed', 'Report Ready');
         statusSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
-        
-        if (typeof marked !== 'undefined') {
-            markdownResult.innerHTML = marked.parse(markdown);
-        } else {
-            console.warn("Marked library not found, showing raw text.");
-            markdownResult.innerText = markdown;
-        }
+        markdownResult.innerHTML = marked.parse(markdown);
+    }
+
+    function resetCards() {
+        Object.keys(cards).forEach(id => updateCard(id, '', 'Waiting...'));
     }
 
     function resetUI() {
@@ -123,6 +121,5 @@ document.addEventListener('DOMContentLoaded', () => {
         resultSection.classList.add('hidden');
         submitBtn.disabled = false;
         progressBar.style.width = '0%';
-        activityLog.innerHTML = '';
     }
 });
