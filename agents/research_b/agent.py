@@ -1,11 +1,11 @@
 import os
 import httpx
-from typing import List, Dict, Any, Optional, AsyncGenerator
+import asyncio
+from typing import List, Dict, Any, Optional
 from google.adk import Agent
 from google.genai import types as genai_types
-from dotenv import load_dotenv
-import asyncio
 from google.adk.events import Event
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -36,6 +36,9 @@ async def record_citations_batch(
     citations: List[Dict[str, str]]
 ) -> str:
     """Record multiple citations at once to the database."""
+    if os.getenv("MOCK_MODE") == "true":
+        return f"[MOCK] Recorded {len(citations)} citations for session {session_id}."
+
     agent_name = "ResearchAgentB"
     model_id = "gemini-2.5-flash"
 
@@ -90,36 +93,4 @@ ResearchAgentB = Agent(
     tools=RESEARCH_TOOLS
 )
 
-from google.adk.agents import BaseAgent
-
-async def mock_run(ctx: Any) -> AsyncGenerator[Event, None]:
-    """Simulate agent work for UI testing."""
-    stages = [
-        "Analyzing research query...",
-        "Searching live web for BigQuery best practices...",
-        "Found 5 relevant sources. Extracting snippets...",
-        "Synthesizing findings into citations...",
-        "Recording citations to Cloud SQL..."
-    ]
-    for stage in stages:
-        content = genai_types.Content(parts=[genai_types.Part(text=stage)])
-        yield Event(author="ResearchAgentB", content=content)
-        await asyncio.sleep(2)
-    
-    final_content = genai_types.Content(parts=[genai_types.Part(text="I have successfully recorded 5 mock citations.")])
-    yield Event(author="ResearchAgentB", content=final_content)
-
-class ResearchAgentBWrapper(BaseAgent):
-    def __init__(self, agent):
-        super().__init__(name=agent.name, description=agent.description)
-        self.agent = agent
-    
-    async def run_async(self, ctx: Any) -> AsyncGenerator[Event, None]:
-        if os.getenv("MOCK_MODE") == "true":
-            async for event in mock_run(ctx):
-                yield event
-        else:
-            async for event in self.agent.run_async(ctx):
-                yield event
-
-root_agent = ResearchAgentBWrapper(ResearchAgentB)
+root_agent = ResearchAgentB
