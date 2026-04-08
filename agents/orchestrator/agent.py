@@ -1,12 +1,12 @@
 import os
 import json
-import asyncio
-from typing import AsyncGenerator, Any
-from google.adk.agents import BaseAgent
+from typing import AsyncGenerator
+from google.adk.agents import BaseAgent, SequentialAgent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.events import Event, EventActions
 from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types as genai_types
+from pydantic import PrivateAttr
 
 from authenticated_httpx import create_authenticated_client
 
@@ -24,52 +24,65 @@ research_c = RemoteA2aAgent(name="ResearchAgentC", agent_card=research_c_url, ht
 synthesizer_url = os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json")
 synthesizer = RemoteA2aAgent(name="SynthesizerAgent", agent_card=synthesizer_url, httpx_client=create_authenticated_client(synthesizer_url))
 
-# --- Custom Orchestrator ---
+# --- Helper Agents ---
 
-class ConclaveOrchestrator(BaseAgent):
-    def __init__(self):
-        super().__init__(name="conclave_orchestrator", description="Orchestrates Model Conclave stages.")
-
-    async def run_async(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        def create_msg_event(text: str, author: str = "System") -> Event:
-            content = genai_types.Content(parts=[genai_types.Part(text=text)])
-            return Event(author=author, content=content, actions=EventActions(skip_summarization=True))
-
-        is_mock = os.getenv("MOCK_MODE") == "true"
+class PromptBroadcaster(BaseAgent):
+    """Ensures the next agent in a sequence receives the original user prompt."""
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        # Find the first user message in the session
+        original_prompt = ""
+        for event in ctx.session.events:
+            if event.author == "user" and event.content and event.content.parts:
+                original_prompt = event.content.parts[0].text
+                break
         
-        # EXTRACT PROMPT STRING
-        # This contains: "SESSION_ID: [UUID] | QUESTION: [Text]"
-        user_prompt = ctx.user_content.parts[0].text
+        # If not found in history, use the current user_content
+        if not original_prompt:
+            original_prompt = ctx.user_content.parts[0].text
 
-        async def run_stage(agent, stage_num, agent_label):
-            yield create_msg_event(f"[Stage {stage_num}/4] {agent_label} is initializing...")
-            await asyncio.sleep(1)
-            
-            if is_mock:
-                yield create_msg_event(f"Searching for live data...", author=agent.name)
-                await asyncio.sleep(2)
-                yield create_msg_event(f"Recording 5 mock citations...", author=agent.name)
-                await asyncio.sleep(2)
-            else:
-                yield create_msg_event(f"Performing deep live research...", author=agent.name)
-                # FIX: Pass the raw prompt STRING as the first argument.
-                # In ADK, this is the most reliable way to ensure the text is sent to the remote agent.
-                async for event in agent.run_async(user_prompt):
-                    yield event
+        yield Event(
+            author=self.name,
+            content=genai_types.Content(parts=[genai_types.Part(text=original_prompt)])
+        )
 
-        # Execute Stages
-        async for e in run_stage(research_a, 1, "Agent A (Claude)"): yield e
-        async for e in run_stage(research_b, 2, "Agent B (GPT)"): yield e
-        async for e in run_stage(research_c, 3, "Agent C (Gemini)"): yield e
+class StageNotifier(BaseAgent):
+    """Simple agent to emit Stage progress logs."""
+    _text: str = PrivateAttr()
+    def __init__(self, name, text):
+        super().__init__(name=name)
+        self._text = text
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        yield Event(
+            author=self.name,
+            content=genai_types.Content(parts=[genai_types.Part(text=self._text)]),
+            actions=EventActions(skip_summarization=True)
+        )
 
-        # Synthesis
-        yield create_msg_event("[Stage 4/4] Synthesizing final report...")
-        if is_mock:
-            report = "## Mock Model Conclave Report\n\nGenerated in **Mock Mode**. Data saved to SQL successfully."
-            yield create_msg_event(report, author="SynthesizerAgent")
-        else:
-            # FIX: Pass raw prompt string to synthesizer
-            async for event in synthesizer.run_async(user_prompt):
-                yield event
+# --- Orchestration ---
 
-root_agent = ConclaveOrchestrator()
+# We create UNIQUE instances for each stage to satisfy Pydantic's "one parent" rule
+root_agent = SequentialAgent(
+    name="conclave_pipeline",
+    description="Sequential Model Conclave pipeline.",
+    sub_agents=[
+        # Stage 1
+        StageNotifier("system_1", "[Stage 1/4] Agent A is starting research..."),
+        PromptBroadcaster(name="broadcaster_1"),
+        research_a,
+        
+        # Stage 2
+        StageNotifier("system_2", "[Stage 2/4] Agent B is starting research..."),
+        PromptBroadcaster(name="broadcaster_2"),
+        research_b,
+        
+        # Stage 3
+        StageNotifier("system_3", "[Stage 3/4] Agent C is starting research..."),
+        PromptBroadcaster(name="broadcaster_3"),
+        research_c,
+        
+        # Stage 4
+        StageNotifier("system_4", "[Stage 4/4] Synthesizer is generating report..."),
+        PromptBroadcaster(name="broadcaster_4"),
+        synthesizer
+    ]
+)
