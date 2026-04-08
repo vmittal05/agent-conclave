@@ -41,15 +41,12 @@ class ChatRequest(BaseModel):
     message: str
     user_id: str = "council_user"
 
-from shared.authenticated_httpx import create_authenticated_client
-
 # --- Orchestrator Interaction ---
 
 async def create_orchestrator_session(user_id: str) -> str:
-    """Explicitly create a session in the ADK Orchestrator with authentication."""
+    """Explicitly create a session in the ADK Orchestrator."""
     url = f"{ORCHESTRATOR_URL}/apps/agent/users/{user_id}/sessions"
-    # Use authenticated client for Cloud Run service-to-service
-    async with create_authenticated_client(ORCHESTRATOR_URL) as client:
+    async with httpx.AsyncClient() as client:
         response = await client.post(url)
         response.raise_for_status()
         return response.json()["id"]
@@ -70,7 +67,7 @@ async def query_orchestrator(user_id: str, message: str) -> str:
     }
     
     final_text = ""
-    async with create_authenticated_client(ORCHESTRATOR_URL) as client:
+    async with httpx.AsyncClient(timeout=600.0) as client:
         async with client.stream("POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as response:
             if response.status_code != 200:
                 error_body = await response.aread()
