@@ -2,6 +2,9 @@
 
 GCP-native multi-agent "Model Conclave" system.
 
+## Demo Link
+[Agent Conclave Demo](https://youtu.be/qcziDsMC8c0)
+
 ## Project Structure
 - `backend/`: FastAPI application and LangGraph orchestration.
 - `cli/`: Typer-based CLI for interacting with the conclave.
