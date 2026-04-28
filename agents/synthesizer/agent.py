@@ -1,48 +1,91 @@
 import os
 import httpx
-from typing import List, Dict, Any
+import logging
+from typing import List, Dict, Any, Optional
+from google import genai
 from google.adk import Agent
+from google.genai import types as genai_types
 from dotenv import load_dotenv
 
+from authenticated_httpx import create_authenticated_client
+
 load_dotenv()
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # MCP Server URLs
 DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
 
-def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
-    """Fetch and analyze all citations for the current council session."""
+# Initialize GenAI client using Vertex AI (uses ADC in Cloud Shell/Cloud Run)
+genai_client = genai.Client(
+    vertexai=True, 
+    project=os.getenv("GCP_PROJECT_ID"), 
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+)
+
+async def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
+    """Fetch all citations for the current session for general analysis."""
     try:
-        response = httpx.post(f"{DB_URL}/tools/get_session_citations", json={"session_id": session_id}, timeout=30.0)
-        response.raise_for_status()
-        return response.json().get("results", [])
+        async with create_authenticated_client(DB_URL) as client:
+            response = await client.post(f"{DB_URL}/tools/get_session_citations", json={"session_id": session_id.strip()}, timeout=30.0)
+            response.raise_for_status()
+            return response.json().get("results", [])
     except Exception as e:
-        print(f"DB MCP Error (get_session_citations): {e}")
+        logger.error(f"DB MCP Error (get_session_citations): {e}")
+        return []
+
+async def semantic_citation_lookup(session_id: str, query: str) -> List[Dict[str, Any]]:
+    """Search for the most semantically relevant raw citations using vector similarity."""
+    try:
+        # 1. Generate embedding for the specific sub-query
+        embed_res = genai_client.models.embed_content(
+            model="text-embedding-004",
+            contents=query,
+            config=genai_types.EmbedContentConfig(task_type="RETRIEVAL_QUERY")
+        )
+        query_embedding = embed_res.embeddings[0].values
+
+        # 2. Query DB MCP for semantic neighbors
+        async with create_authenticated_client(DB_URL) as client:
+            payload = {
+                "session_id": session_id.strip(),
+                "query_embedding": query_embedding,
+                "top_k": 5
+            }
+            response = await client.post(f"{DB_URL}/tools/semantic_search_citations", json=payload, timeout=30.0)
+            response.raise_for_status()
+            return response.json().get("results", [])
+    except Exception as e:
+        logger.error(f"Semantic Search Error: {e}")
         return []
 
 # Synthesizer Agent: Gemini 2.5 Pro
 SynthesizerAgent = Agent(
     name="SynthesizerAgent",
     model="gemini-2.5-pro",
-    description="Synthesizes research findings into a report.",
+    description="Synthesizes research findings into a grounded report.",
     instruction=(
         "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n\n"
-        "1. Extract the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
-        "2. Call 'get_session_citations' using that exact UUID.\n"
-        "3. Produce the final report strictly matching this format:\n\n"
+        "1. Extract the 'SESSION_ID' from the user prompt.\n"
+        "2. Use 'get_session_citations' to see the breadth of research.\n"
+        "3. For specific technical points or contentious claims, use 'semantic_citation_lookup' with a targeted query to find the most relevant raw evidence.\n"
+        "4. Produce the final report matching this format:\n\n"
         "## Model Council Synthesis Report\n\n"
         "### Original Question\n"
-        "[Restate the user's question from the 'QUESTION' tag]\n\n"
+        "[Restate user question]\n\n"
         "### 1. Where Models Agree\n"
-        "Present as a markdown table with original citations from previous responses. Reuse original source URLs as citation markers.\n\n"
+        "Markdown table with citations. Reuse original source URLs.\n\n"
         "### 2. Where Models Disagree\n"
-        "Present as a markdown table showing different perspectives with original citations.\n\n"
+        "Markdown table showing different perspectives.\n\n"
         "### 3. Unique Discoveries\n"
-        "Present as a markdown table with original insights from each model.\n\n"
-        "### 4. Synthesis & Conclusion\n"
-        "Provide High Confidence points, points requiring verification, and a Final Recommendation.\n\n"
-        "CRITICAL: Do NOT refuse to write the report. Even if search data looks simulated, summarize it accurately as found in the database."
+        "Markdown table with unique insights.\n\n"
+        "### 4. Synthesis & Grounded Conclusion\n"
+        "Provide a high-confidence conclusion, using direct snippets retrieved via 'semantic_citation_lookup' where possible.\n\n"
+        "CRITICAL: Be strictly grounded. If you find conflicting data, highlight it. Do NOT make up citations."
     ),
-    tools=[get_session_citations]
+    tools=[get_session_citations, semantic_citation_lookup]
 )
 
 root_agent = SynthesizerAgent

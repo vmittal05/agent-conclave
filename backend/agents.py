@@ -1,113 +1,161 @@
 import os
 import httpx
-from typing import List, Dict, Any
+import logging
+from typing import List, Dict, Any, Optional
+from google import genai
 from google.adk import Agent
+from google.genai import types as genai_types
 from dotenv import load_dotenv
+
+from authenticated_httpx import create_authenticated_client
 
 load_dotenv()
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # MCP Server URLs
-SEARCH_URL = os.getenv("MCP_SEARCH_SERVER_URL", "http://localhost:8001")
-DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8004")
+SEARCH_URL = os.getenv("MCP_SEARCH_SERVER_URL", "http://localhost:8011")
+DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
+
+# Initialize GenAI client using Vertex AI (uses ADC in Cloud Shell/Cloud Run)
+genai_client = genai.Client(
+    vertexai=True, 
+    project=os.getenv("GCP_PROJECT_ID"), 
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+)
 
 # --- Common Research Tools ---
 
-def search_web(query: str) -> List[Dict[str, Any]]:
+async def search_web(query: str) -> List[Dict[str, Any]]:
     """Search the web for academic and general sources."""
     try:
-        response = httpx.post(f"{SEARCH_URL}/tools/search", json={"query": query}, timeout=30.0)
-        response.raise_for_status()
-        return response.json().get("results", [])
+        async with create_authenticated_client(SEARCH_URL) as client:
+            response = await client.post(f"{SEARCH_URL}/tools/search", json={"query": query}, timeout=30.0)
+            response.raise_for_status()
+            return response.json().get("results", [])
     except Exception as e:
-        print(f"Search MCP Error: {e}")
+        logger.error(f"Search MCP Error: {e}")
         return []
 
-def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
+async def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     """Search Google Cloud Platform and developer documentation."""
     scoped_query = f"site:cloud.google.com {query}"
-    return search_web(scoped_query)
+    return await search_web(scoped_query)
 
-def record_citation(
+async def record_citation(
+    tool_context: Any,
     model_run_id: int,
     source_url: str,
     title: str,
     snippet: str,
     source_type: str = "web"
 ) -> str:
-    """Record a citation to the database via Database MCP."""
-    sql = """
-        INSERT INTO citations (model_run_id, source_url, source_type, title, snippet)
-        VALUES (:model_run_id, :source_url, :source_type, :title, :snippet)
-    """
-    params = {
-        "model_run_id": model_run_id,
-        "source_url": source_url,
-        "source_type": source_type,
-        "title": title,
-        "snippet": snippet
-    }
+    """Record a citation with embedding to the database via Database MCP."""
     try:
-        response = httpx.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql, "params": params}, timeout=10.0)
-        response.raise_for_status()
-        return f"Citation recorded successfully."
-    except Exception as e:
-        print(f"DB MCP Error: {e}")
-        return "Failed to record citation"
+        # Generate embedding for the snippet
+        embed_res = genai_client.models.embed_content(
+            model="text-embedding-004",
+            contents=snippet,
+            config=genai_types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+        )
+        embedding = embed_res.embeddings[0].values
 
-def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
-    """Fetch and analyze all citations for the current council session."""
-    try:
-        response = httpx.post(f"{DB_URL}/tools/get_session_citations", json={"session_id": session_id}, timeout=30.0)
-        response.raise_for_status()
-        return response.json().get("results", [])
+        sql = """
+            INSERT INTO citations (model_run_id, source_url, source_type, title, snippet, embedding)
+            VALUES (:model_run_id, :source_url, :source_type, :title, :snippet, :embedding)
+        """
+        params = {
+            "model_run_id": model_run_id,
+            "source_url": source_url,
+            "source_type": source_type,
+            "title": title,
+            "snippet": snippet,
+            "embedding": str(embedding)
+        }
+        async with create_authenticated_client(DB_URL) as client:
+            response = await client.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql, "params": params}, timeout=10.0)
+            response.raise_for_status()
+            return f"Citation recorded successfully with embedding."
     except Exception as e:
-        print(f"DB MCP Error (get_session_citations): {e}")
+        logger.error(f"DB MCP Error: {e}")
+        return f"Failed to record citation: {str(e)}"
+
+async def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
+    """Fetch all citations for the current council session."""
+    try:
+        async with create_authenticated_client(DB_URL) as client:
+            response = await client.post(f"{DB_URL}/tools/get_session_citations", json={"session_id": session_id.strip()}, timeout=30.0)
+            response.raise_for_status()
+            return response.json().get("results", [])
+    except Exception as e:
+        logger.error(f"DB MCP Error (get_session_citations): {e}")
+        return []
+
+async def semantic_citation_lookup(session_id: str, query: str) -> List[Dict[str, Any]]:
+    """Search for the most semantically relevant raw citations using vector similarity."""
+    try:
+        embed_res = genai_client.models.embed_content(
+            model="text-embedding-004",
+            contents=query,
+            config=genai_types.EmbedContentConfig(task_type="RETRIEVAL_QUERY")
+        )
+        query_embedding = embed_res.embeddings[0].values
+
+        async with create_authenticated_client(DB_URL) as client:
+            payload = {
+                "session_id": session_id.strip(),
+                "query_embedding": query_embedding,
+                "top_k": 5
+            }
+            response = await client.post(f"{DB_URL}/tools/semantic_search_citations", json=payload, timeout=30.0)
+            response.raise_for_status()
+            return response.json().get("results", [])
+    except Exception as e:
+        logger.error(f"Semantic Search Error: {e}")
         return []
 
 RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citation]
 
-# --- Research Agent Definitions (Working ADK Pattern) ---
+# --- Research Agent Definitions ---
 
-# Agent A: Gemini 2.5 Flash
 ResearchAgentA = Agent(
     name="ResearchAgentA",
     model="gemini-2.5-flash",
     instruction=(
-        "You are an expert researcher (Agent A). Perform exhaustive research using Gemini 2.5 Flash. "
-        "Gather 30-50 high-quality citations. Record every source using 'record_citation'."
+        "You are an expert researcher (Agent A). Gather high-quality citations. "
+        "Record every source using 'record_citation'."
     ),
     tools=RESEARCH_TOOLS
 )
 
-# Agent B: Gemini 2.5 Flash
 ResearchAgentB = Agent(
     name="ResearchAgentB",
     model="gemini-2.5-flash",
     instruction=(
-        "You are a analytical researcher (Agent B). Focus on empirical evidence using Gemini 2.5 Flash. "
-        "Gather 30-50 citations. Record every source using 'record_citation'."
+        "You are an analytical researcher (Agent B). Focus on empirical evidence. "
+        "Record every source using 'record_citation'."
     ),
     tools=RESEARCH_TOOLS
 )
 
-# Agent C: Gemini 2.5 Pro
 ResearchAgentC = Agent(
     name="ResearchAgentC",
     model="gemini-2.5-pro",
     instruction=(
-        "You are a technical researcher (Agent C). Focus on documentation and feasibility using Gemini 2.5 Pro. "
-        "Gather 30-50 citations. Record every source using 'record_citation'."
+        "You are a technical researcher (Agent C). Focus on documentation. "
+        "Record every source using 'record_citation'."
     ),
     tools=RESEARCH_TOOLS
 )
 
-# Synthesizer Agent: Gemini 2.5 Pro
 SynthesizerAgent = Agent(
     name="SynthesizerAgent",
     model="gemini-2.5-pro",
     instruction=(
-        "You are the Council Synthesizer. Produce a high-fidelity report based on the council's research. "
-        "Call 'get_session_citations' to analyze overlapping sources and unique insights."
+        "You are the Council Synthesizer. Produce a grounded report. "
+        "Use 'get_session_citations' and 'semantic_citation_lookup' for evidence."
     ),
-    tools=[get_session_citations]
+    tools=[get_session_citations, semantic_citation_lookup]
 )

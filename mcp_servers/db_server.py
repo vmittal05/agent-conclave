@@ -66,6 +66,11 @@ class QueryRequest(BaseModel):
     sql: str
     params: Optional[Dict[str, Any]] = None
 
+class SemanticSearchRequest(BaseModel):
+    session_id: str
+    query_embedding: List[float]
+    top_k: Optional[int] = 5
+
 class FirestoreGetRequest(BaseModel):
     collection: str
     doc_id: str
@@ -162,6 +167,39 @@ async def get_session_citations(req: Dict[str, str]):
             return {"results": rows}
     except Exception as e:
         logger.error(f"Get Session Citations Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/tools/semantic_search_citations")
+async def semantic_search_citations(req: SemanticSearchRequest):
+    """Search for citations in a session semantically related to a query embedding."""
+    logger.info(f"Performing semantic search for session: {req.session_id}")
+    engine = get_db_engine()
+    
+    # pgvector cosine distance operator <=>
+    sql = """
+        SELECT 
+            c.source_url, 
+            c.title, 
+            c.snippet,
+            mr.agent_name,
+            (1 - (c.embedding <=> :query_embedding)) as similarity
+        FROM citations c
+        JOIN model_runs mr ON c.model_run_id = mr.id
+        WHERE mr.session_id = :session_id
+        ORDER BY similarity DESC
+        LIMIT :top_k;
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text(sql), {
+                "session_id": req.session_id,
+                "query_embedding": str(req.query_embedding),
+                "top_k": req.top_k
+            })
+            rows = [dict(row._mapping) for row in result]
+            return {"results": rows}
+    except Exception as e:
+        logger.error(f"Semantic Search Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
