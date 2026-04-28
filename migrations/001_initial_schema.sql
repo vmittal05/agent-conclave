@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS citations (
     snippet TEXT,
     raw_citation TEXT,
     normalized_key TEXT,
-    embedding VECTOR(1536), -- Assuming standard embedding size (e.g., OpenAI/Vertex)
+    embedding VECTOR(768), -- Matches text-embedding-004 default dimensions
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -1,7 +1,7 @@
 import os
 import json
 from typing import AsyncGenerator
-from google.adk.agents import BaseAgent, SequentialAgent
+from google.adk.agents import BaseAgent, SequentialAgent, ParallelAgent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.events import Event, EventActions
 from google.adk.agents.invocation_context import InvocationContext
@@ -60,29 +60,24 @@ class StageNotifier(BaseAgent):
 
 # --- Orchestration ---
 
-# We create UNIQUE instances for each stage to satisfy Pydantic's "one parent" rule
+# Phase 1: Parallel Research
+research_council = ParallelAgent(
+    name="research_council",
+    description="Executes all research agents in parallel.",
+    sub_agents=[research_a, research_b, research_c]
+)
+
+# Phase 2: Synthesis
 root_agent = SequentialAgent(
     name="conclave_pipeline",
-    description="Sequential Model Conclave pipeline.",
+    description="Model Conclave pipeline with Parallel Research.",
     sub_agents=[
-        # Stage 1
-        StageNotifier("system_1", "[Stage 1/4] Agent A is starting research..."),
-        PromptBroadcaster(name="broadcaster_1"),
-        research_a,
-        
-        # Stage 2
-        StageNotifier("system_2", "[Stage 2/4] Agent B is starting research..."),
-        PromptBroadcaster(name="broadcaster_2"),
-        research_b,
-        
-        # Stage 3
-        StageNotifier("system_3", "[Stage 3/4] Agent C is starting research..."),
-        PromptBroadcaster(name="broadcaster_3"),
-        research_c,
-        
-        # Stage 4
-        StageNotifier("system_4", "[Stage 4/4] Synthesizer is generating report..."),
-        PromptBroadcaster(name="broadcaster_4"),
+        StageNotifier("system_start", "[Stage 1/2] Research Council is starting parallel analysis..."),
+        PromptBroadcaster(name="input_broadcaster"),
+        research_council,
+        StageNotifier("system_synth", "[Stage 2/2] Synthesizer is generating grounded report..."),
+        # We broadcast the user prompt again to ensure synthesizer has the original intent
+        PromptBroadcaster(name="synth_broadcaster"),
         synthesizer
     ]
 )

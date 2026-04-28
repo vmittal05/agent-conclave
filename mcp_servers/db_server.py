@@ -55,6 +55,15 @@ def get_db_engine():
                 "postgresql+pg8000://",
                 creator=getconn,
             )
+            # Automatic migration for pgvector dimension mismatch
+            try:
+                with db_engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE citations ALTER COLUMN embedding TYPE vector(768);"))
+                    logger.info("Migrated citations.embedding to 768 dimensions.")
+            except Exception as e:
+                # If it fails (e.g. table doesn't exist yet), just continue
+                logger.debug(f"Migration skip or failed: {e}")
+            
             logger.info("Cloud SQL Engine initialized.")
         except Exception as e:
             logger.error(f"Failed to initialize Cloud SQL Engine: {e}")
@@ -85,7 +94,10 @@ class FirestoreUpdateRequest(BaseModel):
 @app.post("/tools/sql_query")
 async def sql_query(req: QueryRequest):
     """Execute a SQL query with immediate commit."""
-    logger.info(f"Executing SQL Query: {req.sql} with params {req.params}")
+    log_params = str(req.params)
+    if len(log_params) > 500:
+        log_params = log_params[:500] + "... [truncated]"
+    logger.info(f"Executing SQL Query: {req.sql} with params {log_params}")
     engine = get_db_engine()
     try:
         # Use engine.begin() to ensure the transaction is committed
@@ -103,7 +115,11 @@ async def sql_query(req: QueryRequest):
 @app.post("/tools/sql_execute")
 async def sql_execute(req: QueryRequest):
     """Execute a write SQL statement (INSERT/UPDATE)."""
-    logger.info(f"Executing SQL Statement: {req.sql} with params {req.params}")
+    # Truncate params in logs if they are too large (e.g. embeddings)
+    log_params = str(req.params)
+    if len(log_params) > 500:
+        log_params = log_params[:500] + "... [truncated]"
+    logger.info(f"Executing SQL Statement: {req.sql} with params {log_params}")
     engine = get_db_engine()
     try:
         with engine.begin() as conn:

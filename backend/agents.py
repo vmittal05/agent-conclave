@@ -124,7 +124,7 @@ ResearchAgentA = Agent(
     name="ResearchAgentA",
     model="gemini-2.5-flash",
     instruction=(
-        "You are an expert researcher (Agent A). Gather high-quality citations. "
+        "You are an expert researcher (Agent A). Gather exactly 5 high-quality citations. "
         "Record every source using 'record_citation'."
     ),
     tools=RESEARCH_TOOLS
@@ -135,7 +135,7 @@ ResearchAgentB = Agent(
     model="gemini-2.5-flash",
     instruction=(
         "You are an analytical researcher (Agent B). Focus on empirical evidence. "
-        "Record every source using 'record_citation'."
+        "Gather exactly 5 high-quality citations. Record every source using 'record_citation'."
     ),
     tools=RESEARCH_TOOLS
 )
@@ -145,7 +145,7 @@ ResearchAgentC = Agent(
     model="gemini-2.5-pro",
     instruction=(
         "You are a technical researcher (Agent C). Focus on documentation. "
-        "Record every source using 'record_citation'."
+        "Gather exactly 5 high-quality citations. Record every source using 'record_citation'."
     ),
     tools=RESEARCH_TOOLS
 )
