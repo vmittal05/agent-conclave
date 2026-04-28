@@ -26,23 +26,26 @@ synthesizer = RemoteA2aAgent(name="SynthesizerAgent", agent_card=synthesizer_url
 
 # --- Helper Agents ---
 
-class PromptBroadcaster(BaseAgent):
-    """Ensures the next agent in a sequence receives the original user prompt."""
+class PersonaBroadcaster(BaseAgent):
+    """Enriches the user prompt with persona-specific research instructions."""
+    _instruction: str = PrivateAttr()
+    def __init__(self, name, instruction):
+        super().__init__(name=name)
+        self._instruction = instruction
+
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        # Find the first user message in the session
         original_prompt = ""
         for event in ctx.session.events:
             if event.author == "user" and event.content and event.content.parts:
                 original_prompt = event.content.parts[0].text
                 break
-        
-        # If not found in history, use the current user_content
         if not original_prompt:
             original_prompt = ctx.user_content.parts[0].text
 
+        enriched_prompt = f"{self._instruction} Regarding: {original_prompt}"
         yield Event(
             author=self.name,
-            content=genai_types.Content(parts=[genai_types.Part(text=original_prompt)])
+            content=genai_types.Content(parts=[genai_types.Part(text=enriched_prompt)])
         )
 
 class StageNotifier(BaseAgent):
@@ -60,11 +63,24 @@ class StageNotifier(BaseAgent):
 
 # --- Orchestration ---
 
-# Phase 1: Parallel Research
+# Phase 1: Parallel Research with Persona-Driven Rephrasing
 research_council = ParallelAgent(
     name="research_council",
-    description="Executes all research agents in parallel.",
-    sub_agents=[research_a, research_b, research_c]
+    description="Executes specialized research agents in parallel with distinct focal points.",
+    sub_agents=[
+        SequentialAgent(name="path_a", sub_agents=[
+            PersonaBroadcaster("broadcaster_a", "Analyze the high-level expert consensus and industry standards for:"),
+            research_a
+        ]),
+        SequentialAgent(name="path_b", sub_agents=[
+            PersonaBroadcaster("broadcaster_b", "Search for empirical data, benchmarks, and statistical evidence regarding:"),
+            research_b
+        ]),
+        SequentialAgent(name="path_c", sub_agents=[
+            PersonaBroadcaster("broadcaster_c", "Find technical documentation, API specifications, and implementation examples for:"),
+            research_c
+        ])
+    ]
 )
 
 # Phase 2: Synthesis
@@ -73,11 +89,12 @@ root_agent = SequentialAgent(
     description="Model Conclave pipeline with Parallel Research.",
     sub_agents=[
         StageNotifier("system_start", "[Stage 1/2] Research Council is starting parallel analysis..."),
-        PromptBroadcaster(name="input_broadcaster"),
+        # Initial broadcast to set context
+        PersonaBroadcaster("input_broadcaster", "Coordinate a multi-perspective analysis on:"),
         research_council,
         StageNotifier("system_synth", "[Stage 2/2] Synthesizer is generating grounded report..."),
-        # We broadcast the user prompt again to ensure synthesizer has the original intent
-        PromptBroadcaster(name="synth_broadcaster"),
+        # Final broadcast to ensure synthesizer has the original intent
+        PersonaBroadcaster("synth_broadcaster", "Synthesize all gathered data to answer:"),
         synthesizer
     ]
 )
