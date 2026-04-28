@@ -33,7 +33,7 @@ SynthesizerAgent = Agent(
         "### Original Question\n"
         "[Restate the user's question from the 'QUESTION' tag]\n\n"
         "### 1. Where Models Agree\n"
-        "Present as a markdown table withoriginal citations from previous responses. Reuse original source URLs as citation markers.\n\n"
+        "Present as a markdown table with original citations from previous responses. Reuse original source URLs as citation markers.\n\n"
         "### 2. Where Models Disagree\n"
         "Present as a markdown table showing different perspectives with original citations.\n\n"
         "### 3. Unique Discoveries\n"
