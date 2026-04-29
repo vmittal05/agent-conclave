@@ -162,7 +162,7 @@ ResearchAgentB = Agent(
         "You are an analytical researcher (Agent B). Perform focused research using Gemini 2.5 Flash.\n"
         "1. Identify the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
         "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
-        "3. If the user asks for data analysis, trends, or visualizations, use 'execute_python' to generate charts (using matplotlib) and 'gcs_write' to save them. Use the SESSION_ID in the filename (e.g., charts/{session_id}_trend.png).\n"
+        "3. If the user asks for data analysis, trends, or visualizations, use 'execute_python' to generate charts (using matplotlib) and 'gcs_write' to save them. Use the SESSION_ID in the filename (e.g., charts/SESSION_ID_trend.png).\n"
         "4. Use 'record_citations_batch' ONCE to save all 5 results and any generated file URLs using the extracted SESSION_ID."
     ),
     tools=RESEARCH_TOOLS

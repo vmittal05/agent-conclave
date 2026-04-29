@@ -22,6 +22,12 @@ from langsmith import traceable
 
 load_dotenv()
 
+# --- Models ---
+
+class ChatRequest(BaseModel):
+    message: str
+    user_id: str = "default_user"
+
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
