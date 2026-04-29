@@ -40,10 +40,27 @@ gcloud run deploy conclave-mcp-search \
     --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
 SEARCH_MCP_URL=$(gcloud run services describe conclave-mcp-search --region $REGION --format='value(status.url)')
 
+echo "Deploying Code Interpreter MCP..."
+gcloud run deploy conclave-mcp-code \
+    --source . \
+    --command "python" \
+    --args "mcp_servers/code_server.py" \
+    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
+CODE_MCP_URL=$(gcloud run services describe conclave-mcp-code --region $REGION --format='value(status.url)')
+
+echo "Deploying File System MCP..."
+gcloud run deploy conclave-mcp-fs \
+    --source . \
+    --command "python" \
+    --args "mcp_servers/fs_server.py" \
+    --set-env-vars "GCS_BUCKET_NAME=conclave-assets-$PROJECT_ID" \
+    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
+FS_MCP_URL=$(gcloud run services describe conclave-mcp-fs --region $REGION --format='value(status.url)')
+
 # --- 2. Research & Synthesizer Agents ---
 
 LANGSMITH_VARS="LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave"
-COMMON_AGENT_VARS="AGENT_REGISTRY_URL=$REGISTRY_URL,MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS"
+COMMON_AGENT_VARS="AGENT_REGISTRY_URL=$REGISTRY_URL,MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,MCP_CODE_SERVER_URL=$CODE_MCP_URL,MCP_FS_SERVER_URL=$FS_MCP_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS"
 
 deploy_agent() {
     local name=$1

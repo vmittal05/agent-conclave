@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 # MCP Server URLs
 SEARCH_URL = os.getenv("MCP_SEARCH_SERVER_URL", "http://localhost:8011")
 DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
+CODE_URL = os.getenv("MCP_CODE_SERVER_URL", "http://localhost:8013")
+FS_URL = os.getenv("MCP_FS_SERVER_URL", "http://localhost:8014")
 
 # Initialize GenAI client using Vertex AI (uses ADC in Cloud Shell/Cloud Run)
 genai_client = genai.Client(
@@ -49,6 +51,34 @@ async def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     """Search Google Cloud Platform and developer documentation."""
     scoped_query = f"site:cloud.google.com {query}"
     return await search_web(scoped_query)
+
+@traceable(run_type="tool", name="AgentA_ExecutePython")
+async def execute_python(code: str) -> Dict[str, Any]:
+    """Execute Python code for data analysis or generating charts. Returns stdout/stderr."""
+    try:
+        async with create_authenticated_client(CODE_URL) as client:
+            response = await client.post(f"{CODE_URL}/tools/execute_python", json={"code": code}, timeout=60.0)
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.error(f"Code MCP Error: {e}")
+        return {"error": str(e)}
+
+@traceable(run_type="tool", name="AgentA_GCSWrite")
+async def gcs_write(file_path: str, content: str, content_type: str = "text/plain") -> Dict[str, Any]:
+    """Write data or generated images to the cloud file system."""
+    try:
+        async with create_authenticated_client(FS_URL) as client:
+            response = await client.post(f"{FS_URL}/tools/gcs_write", json={
+                "file_path": file_path,
+                "content": content,
+                "content_type": content_type
+            })
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.error(f"FS MCP Error: {e}")
+        return {"error": str(e)}
 
 @traceable(run_type="tool", name="AgentA_RecordCitations")
 async def record_citations_batch(
@@ -122,17 +152,18 @@ async def record_citations_batch(
         logger.error(f"DB Error in Agent A: {str(e)}")
         return f"ERROR: Failed to save to database: {str(e)}"
 
-RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
+RESEARCH_TOOLS = [search_web, search_gcp_docs, execute_python, gcs_write, record_citations_batch]
 
 ResearchAgentA = Agent(
     name="ResearchAgentA",
     model="gemini-2.5-flash",
     description="An expert researcher (Agent A).",
     instruction=(
-        "You are an expert researcher (Agent A). Perform focused research using Gemini 2.5 Flash. "
-        "1. Identify the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag). "
-        "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag. "
-        "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted SESSION_ID."
+        "You are an expert researcher (Agent A). Perform focused research using Gemini 2.5 Flash.\n"
+        "1. Identify the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
+        "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
+        "3. If the user asks for data analysis, trends, or visualizations, use 'execute_python' to generate charts (using matplotlib) and 'gcs_write' to save them. Use the SESSION_ID in the filename (e.g., charts/{session_id}_trend.png).\n"
+        "4. Use 'record_citations_batch' ONCE to save all 5 results and any generated file URLs using the extracted SESSION_ID."
     ),
     tools=RESEARCH_TOOLS
 )

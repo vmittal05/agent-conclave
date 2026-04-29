@@ -3,6 +3,8 @@ import uuid
 import json
 import httpx
 import logging
+import subprocess
+from urllib.parse import urlparse
 from datetime import datetime
 from typing import Dict, Any, AsyncGenerator
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -10,6 +12,10 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from google.cloud import firestore
+from google.auth.transport.requests import AuthorizedSession, Request
+from google.auth.exceptions import DefaultCredentialsError
+from google.oauth2.credentials import Credentials
+from google.oauth2.id_token import fetch_id_token_credentials
 from google.genai import types as genai_types
 from dotenv import load_dotenv
 from langsmith import traceable
@@ -33,13 +39,45 @@ except Exception as e:
 
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:8005").rstrip("/")
 
-# Global HTTP client for connection pooling and stability
-client = httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0), limits=httpx.Limits(max_connections=100))
+# --- Authentication Helper ---
 
-# --- Models ---
-class ChatRequest(BaseModel):
-    message: str
-    user_id: str = "council_user"
+def create_authenticated_client(remote_service_url: str) -> httpx.AsyncClient:
+    """Creates an httpx.AsyncClient with Google identity token authentication."""
+    class _IdentityTokenAuth(httpx.Auth):
+        def __init__(self, remote_service_url: str):
+            parsed_url = urlparse(remote_service_url)
+            self.root_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            self.session = None
+
+        def auth_flow(self, request):
+            if self.session:
+                id_token = self.session.credentials.token
+            else:
+                id_token = None
+                try:
+                    credentials = fetch_id_token_credentials(audience=self.root_url)
+                    credentials.refresh(Request())
+                    self.session = AuthorizedSession(credentials)
+                    id_token = self.session.credentials.token
+                except DefaultCredentialsError:
+                    pass
+                
+                if not id_token:
+                    try:
+                        id_token = subprocess.check_output(["gcloud", "auth", "print-identity-token", "-q"]).decode().strip()
+                    except:
+                        pass
+            
+            if id_token:
+                request.headers["Authorization"] = f"Bearer {id_token}"
+            yield request
+
+    return httpx.AsyncClient(
+        auth=_IdentityTokenAuth(remote_service_url),
+        follow_redirects=True,
+        timeout=httpx.Timeout(600.0, connect=10.0),
+        limits=httpx.Limits(max_connections=100)
+    )
 
 # --- Orchestrator Interaction ---
 
@@ -47,9 +85,10 @@ async def create_orchestrator_session(user_id: str) -> str:
     """Explicitly create a session in the ADK Orchestrator."""
     url = f"{ORCHESTRATOR_URL}/apps/agent/users/{user_id}/sessions"
     try:
-        response = await client.post(url)
-        response.raise_for_status()
-        return response.json()["id"]
+        async with create_authenticated_client(ORCHESTRATOR_URL) as auth_client:
+            response = await auth_client.post(url)
+            response.raise_for_status()
+            return response.json()["id"]
     except Exception as e:
         logger.error(f"Failed to create orchestrator session: {e}")
         raise HTTPException(status_code=500, detail=f"Orchestrator connection failed: {str(e)}")
@@ -93,31 +132,32 @@ async def chat_stream(request: ChatRequest):
     async def event_generator():
         final_text = ""
         try:
-            async with client.stream("POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as response:
-                if response.status_code != 200:
-                    error_text = await response.aread()
-                    yield json.dumps({"type": "progress", "text": f"❌ Error: {error_text.decode()[:100]}"}) + "\n"
-                    return
+            async with create_authenticated_client(ORCHESTRATOR_URL) as auth_client:
+                async with auth_client.stream("POST", f"{ORCHESTRATOR_URL}/run_sse", json=request_body) as response:
+                    if response.status_code != 200:
+                        error_text = await response.aread()
+                        yield json.dumps({"type": "progress", "text": f"❌ Error: {error_text.decode()[:100]}"}) + "\n"
+                        return
 
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        event = json.loads(data)
-                        author = event.get("author", "Agent")
-                        
-                        if "content" in event and event["content"]:
-                            content = genai_types.Content.model_validate(event["content"])
-                            text = "".join([p.text for p in content.parts if p.text]) # type: ignore
-                            if not text: continue
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            event = json.loads(data)
+                            author = event.get("author", "Agent")
+                            
+                            if "content" in event and event["content"]:
+                                content = genai_types.Content.model_validate(event["content"])
+                                text = "".join([p.text for p in content.parts if p.text]) # type: ignore
+                                if not text: continue
 
-                            if "[Stage" in text:
-                                yield json.dumps({"type": "progress", "text": text}) + "\n"
-                            elif author == "SynthesizerAgent":
-                                final_text += text
-                                yield json.dumps({"type": "activity", "author": author, "text": "Drafting final report..."}) + "\n"
-                            else:
-                                display_text = (text[:100] + '...') if len(text) > 100 else text
-                                yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
+                                if "[Stage" in text:
+                                    yield json.dumps({"type": "progress", "text": text}) + "\n"
+                                elif author == "SynthesizerAgent":
+                                    final_text += text
+                                    yield json.dumps({"type": "activity", "author": author, "text": "Drafting final report..."}) + "\n"
+                                else:
+                                    display_text = (text[:100] + '...') if len(text) > 100 else text
+                                    yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
         except Exception as e:
             logger.error(f"Stream error: {e}")
             yield json.dumps({"type": "progress", "text": f"❌ Stream connection lost: {str(e)}"}) + "\n"

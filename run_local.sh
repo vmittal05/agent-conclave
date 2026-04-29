@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Kill any existing processes on these ports
-echo "Stopping any existing processes on ports 8001-8005, 8010-8011, and 8080..."
-fuser -k 8001/tcp 8002/tcp 8003/tcp 8004/tcp 8005/tcp 8010/tcp 8011/tcp 8080/tcp 2>/dev/null
+echo "Stopping any existing processes on ports 8001-8005, 8010-8014, and 8080..."
+fuser -k 8001/tcp 8002/tcp 8003/tcp 8004/tcp 8005/tcp 8010/tcp 8011/tcp 8012/tcp 8013/tcp 8014/tcp 8080/tcp 2>/dev/null
 
 # Set common environment variables
 export GCP_PROJECT_ID=$(gcloud config get-value project)
@@ -10,6 +10,7 @@ export GOOGLE_CLOUD_PROJECT=$GCP_PROJECT_ID
 export GOOGLE_CLOUD_LOCATION="us-central1"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 export MOCK_MODE=${MOCK_MODE:-false}
+export GCS_BUCKET_NAME="conclave-assets-$GCP_PROJECT_ID"
 
 # LangSmith Observability
 export LANGCHAIN_TRACING_V2=true
@@ -31,35 +32,49 @@ export PORT=8012
 poetry run python mcp_servers/registry_server.py &
 REGISTRY_PID=$!
 
+echo "Starting Code Interpreter MCP on port 8013..."
+export PORT=8013
+poetry run python mcp_servers/code_server.py &
+CODE_PID=$!
+
+echo "Starting File System MCP on port 8014..."
+export PORT=8014
+poetry run python mcp_servers/fs_server.py &
+FS_PID=$!
+
 # Update MCP URLs for agents
 export MCP_DB_SERVER_URL=http://localhost:8010
 export MCP_SEARCH_SERVER_URL=http://localhost:8011
 export AGENT_REGISTRY_URL=http://localhost:8012
+export MCP_CODE_SERVER_URL=http://localhost:8013
+export MCP_FS_SERVER_URL=http://localhost:8014
 
 # Start each agent microservice
 # Note: ADK names the A2A app "agent" by default when run from the agent folder
 
+COMMON_AGENT_VARS="MCP_DB_SERVER_URL=$MCP_DB_SERVER_URL,MCP_SEARCH_SERVER_URL=$MCP_SEARCH_SERVER_URL,MCP_CODE_SERVER_URL=$MCP_CODE_SERVER_URL,MCP_FS_SERVER_URL=$MCP_FS_SERVER_URL,AGENT_REGISTRY_URL=$AGENT_REGISTRY_URL,GCP_PROJECT_ID=$GCP_PROJECT_ID"
+
 echo "Starting Research Agent A on port 8001..."
 pushd agents/research_a
-uv run adk_app.py --host 0.0.0.0 --port 8001 --a2a . &
+PUBLIC_AGENT_URL=http://localhost:8001 uv run adk_app.py --host 0.0.0.0 --port 8001 --a2a . &
 RESEARCH_A_PID=$!
 popd
 
 echo "Starting Research Agent B on port 8002..."
 pushd agents/research_b
-uv run adk_app.py --host 0.0.0.0 --port 8002 --a2a . &
+PUBLIC_AGENT_URL=http://localhost:8002 uv run adk_app.py --host 0.0.0.0 --port 8002 --a2a . &
 RESEARCH_B_PID=$!
 popd
 
 echo "Starting Research Agent C on port 8003..."
 pushd agents/research_c
-uv run adk_app.py --host 0.0.0.0 --port 8003 --a2a . &
+PUBLIC_AGENT_URL=http://localhost:8003 uv run adk_app.py --host 0.0.0.0 --port 8003 --a2a . &
 RESEARCH_C_PID=$!
 popd
 
 echo "Starting Synthesizer Agent on port 8004..."
 pushd agents/synthesizer
-uv run adk_app.py --host 0.0.0.0 --port 8004 --a2a . &
+PUBLIC_AGENT_URL=http://localhost:8004 uv run adk_app.py --host 0.0.0.0 --port 8004 --a2a . &
 SYNTHESIZER_PID=$!
 popd
 
@@ -87,5 +102,5 @@ echo "All agents, MCP servers, and backend started!"
 echo "Backend API: http://localhost:8080"
 echo "Press Ctrl+C to stop all processes."
 
-trap "kill $DB_MCP_PID $SEARCH_MCP_PID $REGISTRY_PID $RESEARCH_A_PID $RESEARCH_B_PID $RESEARCH_C_PID $SYNTHESIZER_PID $ORCHESTRATOR_PID $BACKEND_PID; exit" INT
+trap "kill $DB_MCP_PID $SEARCH_MCP_PID $REGISTRY_PID $CODE_PID $FS_PID $RESEARCH_A_PID $RESEARCH_B_PID $RESEARCH_C_PID $SYNTHESIZER_PID $ORCHESTRATOR_PID $BACKEND_PID; exit" INT
 wait

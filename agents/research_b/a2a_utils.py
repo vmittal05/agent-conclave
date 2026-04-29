@@ -132,11 +132,14 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
                     # 2. Add full PUBLIC URL to the card for the registry
                     card_data["url"] = agent_url
                     
-                    # 3. Register with Registry Service
-                    reg_response = await client.post(f"{registry_url}/register", json=card_data)
-                    if reg_response.status_code == 200:
-                        print(f"✅ Successfully registered {agent_name} with Registry at {agent_url}")
-                        return True
+                    # 3. Register with Registry Service using authenticated client
+                    async with create_authenticated_client(registry_url) as auth_client:
+                        reg_response = await auth_client.post(f"{registry_url}/register", json=card_data)
+                        if reg_response.status_code == 200:
+                            print(f"✅ Successfully registered {agent_name} with Registry at {agent_url}")
+                            return True
+                        else:
+                            print(f"⚠️ Registry registration failed ({reg_response.status_code}): {reg_response.text}")
             except Exception as e:
                 print(f"Registration attempt {i+1} failed: {e}")
             await asyncio.sleep(2)

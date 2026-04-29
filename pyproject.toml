@@ -25,6 +25,9 @@ python-dotenv = "^1.0.1"
 google-genai = ">=1.56.0"
 langsmith = "^0.3.0"
 langchain-core = "^0.3.0"
+google-cloud-storage = ">=2.18.0,<3.0.0"
+matplotlib = "^3.10.9"
+pandas = "^3.0.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
