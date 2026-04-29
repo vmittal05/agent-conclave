@@ -102,6 +102,39 @@ async def a2a_card_dispatch(
     return response
 
 
+async def register_agent_with_registry(agent_name: str, agent_port: int):
+    """Fetches the agent card and registers it with the central Registry Service."""
+    import os
+    import time
+    registry_url = os.getenv("AGENT_REGISTRY_URL", "http://localhost:8012")
+    agent_url = f"http://localhost:{agent_port}/a2a/{agent_name}"
+    card_url = f"{agent_url}/.well-known/agent-card.json"
+    
+    # Wait for the agent to actually be up
+    max_retries = 10
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for i in range(max_retries):
+            try:
+                # 1. Fetch the Card
+                response = await client.get(card_url)
+                if response.status_code == 200:
+                    card_data = response.json()
+                    # 2. Add full URL to the card for the registry
+                    card_data["url"] = agent_url
+                    
+                    # 3. Register with Registry Service
+                    reg_response = await client.post(f"{registry_url}/register", json=card_data)
+                    if reg_response.status_code == 200:
+                        print(f"✅ Successfully registered {agent_name} with Registry.")
+                        return True
+            except Exception:
+                pass
+            await asyncio.sleep(2)
+    
+    print(f"❌ Failed to register {agent_name} after {max_retries} attempts.")
+    return False
+
+
 def create_authenticated_client(
         remote_service_url: str,
         timeout: float = DEFAULT_TIMEOUT
