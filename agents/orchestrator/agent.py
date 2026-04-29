@@ -8,6 +8,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types as genai_types
 from pydantic import PrivateAttr
 import httpx
+from langsmith import traceable
 
 from authenticated_httpx import create_authenticated_client
 
@@ -18,6 +19,7 @@ REGISTRY_URL = os.getenv("AGENT_REGISTRY_URL", "http://localhost:8012")
 
 class DiscoveryAgent(BaseAgent):
     """Queries the Registry to find suitable agents for the research task."""
+    @traceable(run_type="chain", name="Orchestrator_Discovery")
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         yield Event(author=self.name, content=genai_types.Content(parts=[genai_types.Part(text="🔍 Consulting Agent Registry for specialists...")]), actions=EventActions(skip_summarization=True))
         
@@ -26,12 +28,11 @@ class DiscoveryAgent(BaseAgent):
                 response = await client.get(f"{REGISTRY_URL}/agents")
                 if response.status_code == 200:
                     agents = response.json()
-                    # Filter for agents that likely perform research (e.g. have search tools)
-                    # For local dev, we just look for 'agent' or 'ResearchAgent'
+                    # Filter for research agents
                     researchers = [a for a in agents if "ResearchAgent" in a["name"]]
                     
-                    # Store in context for the next stage
-                    ctx.context["discovered_researchers"] = researchers
+                    # Store in session state for the next stage
+                    ctx.session.state["discovered_researchers"] = researchers
                     
                     names = ", ".join([a["name"] for a in researchers])
                     yield Event(author=self.name, content=genai_types.Content(parts=[genai_types.Part(text=f"✅ Found {len(researchers)} agents: {names}")]), actions=EventActions(skip_summarization=True))
@@ -42,8 +43,9 @@ class DiscoveryAgent(BaseAgent):
 
 class DynamicParallelResearch(BaseAgent):
     """Instantiates and runs RemoteA2aAgents dynamically based on DiscoveryAgent results."""
+    @traceable(run_type="chain", name="Orchestrator_ParallelResearch")
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        discovered = ctx.context.get("discovered_researchers", [])
+        discovered = ctx.session.state.get("discovered_researchers", [])
         
         if not discovered:
             yield Event(author=self.name, content=genai_types.Content(parts=[genai_types.Part(text="No researchers discovered. Skipping research phase.")]))
@@ -87,6 +89,7 @@ class PersonaBroadcaster(BaseAgent):
         super().__init__(name=name)
         self._instruction = instruction
 
+    @traceable(run_type="chain", name="Orchestrator_PersonaRephraser")
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         original_prompt = ""
         for event in ctx.session.events:
@@ -117,7 +120,7 @@ class StageNotifier(BaseAgent):
 
 # --- Orchestration ---
 
-# The Root Pipeline is now truly dynamic
+# The Root Pipeline is now truly dynamic and traced
 root_agent = SequentialAgent(
     name="conclave_pipeline",
     description="Dynamic Model Conclave pipeline.",
@@ -129,7 +132,6 @@ root_agent = SequentialAgent(
         DynamicParallelResearch(name="dynamic_research_hub"),
         
         StageNotifier("system_synth", "[Stage 3/3] Synthesis: Generating grounded final report..."),
-        # We broadcast the user prompt again to ensure synthesizer has the original intent
         PersonaBroadcaster("synth_broadcaster", "Synthesize all gathered data to answer:"),
         RemoteA2aAgent(
             name="SynthesizerAgent", 

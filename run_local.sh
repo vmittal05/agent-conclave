@@ -11,6 +11,11 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 export MOCK_MODE=${MOCK_MODE:-false}
 
+# LangSmith Observability
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_PROJECT="Model-Conclave-Hackathon"
+# export LANGCHAIN_API_KEY="your-key-here" 
+
 echo "Starting Database MCP Server on port 8010..."
 export PORT=8010
 poetry run python mcp_servers/db_server.py &

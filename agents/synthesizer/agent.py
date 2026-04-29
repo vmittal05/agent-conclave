@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from google import genai
 from google.adk import Agent
 from google.genai import types as genai_types
+from langsmith import traceable
 from dotenv import load_dotenv
 
 from authenticated_httpx import create_authenticated_client
@@ -25,6 +26,7 @@ genai_client = genai.Client(
     location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 )
 
+@traceable(run_type="tool", name="Synth_GetCitations")
 async def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
     """Fetch all citations for the current session for general analysis."""
     try:
@@ -36,6 +38,7 @@ async def get_session_citations(session_id: str) -> List[Dict[str, Any]]:
         logger.error(f"DB MCP Error (get_session_citations): {e}")
         return []
 
+@traceable(run_type="tool", name="Synth_SemanticLookup")
 async def semantic_citation_lookup(session_id: str, query: str) -> List[Dict[str, Any]]:
     """Search for the most semantically relevant raw citations using vector similarity."""
     try:

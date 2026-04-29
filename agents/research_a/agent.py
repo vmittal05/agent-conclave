@@ -7,6 +7,7 @@ from google import genai
 from google.adk import Agent
 from google.genai import types as genai_types
 from google.adk.events import Event
+from langsmith import traceable
 from dotenv import load_dotenv
 
 from authenticated_httpx import create_authenticated_client
@@ -30,6 +31,7 @@ genai_client = genai.Client(
 
 # --- Common Research Tools ---
 
+@traceable(run_type="tool", name="AgentA_WebSearch")
 async def search_web(query: str) -> List[Dict[str, Any]]:
     """Search the web for academic and general sources with authentication."""
     try:
@@ -42,11 +44,13 @@ async def search_web(query: str) -> List[Dict[str, Any]]:
         logger.error(f"Search MCP Error: {e}")
         return []
 
+@traceable(run_type="tool", name="AgentA_GCPDocs")
 async def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     """Search Google Cloud Platform and developer documentation."""
     scoped_query = f"site:cloud.google.com {query}"
     return await search_web(scoped_query)
 
+@traceable(run_type="tool", name="AgentA_RecordCitations")
 async def record_citations_batch(
     tool_context: Any,
     session_id: str,

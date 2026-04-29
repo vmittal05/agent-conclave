@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const markdownResult = document.getElementById('markdownResult');
     const newQueryBtn = document.getElementById('newQueryBtn');
     const inputSection = document.querySelector('.input-section');
+    const traceSection = document.getElementById('traceSection');
+    const traceLog = document.getElementById('traceLog');
 
     const cards = {
         'ResearchAgentA': document.getElementById('card-research_a'),
@@ -27,6 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelector('.card-status').innerText = msg;
     }
 
+    function logTrace(author, text, isSystem = false) {
+        const entry = document.createElement('div');
+        entry.className = isSystem ? 'trace-entry system' : 'trace-entry';
+        
+        if (isSystem) {
+            entry.innerHTML = `<span class="trace-text">${text}</span>`;
+        } else {
+            entry.innerHTML = `<span class="trace-author">${author}:</span><span class="trace-text">${text}</span>`;
+        }
+        
+        traceLog.appendChild(entry);
+        traceLog.scrollTop = traceLog.scrollHeight;
+    }
+
     async function startResearch() {
         const question = queryInput.value.trim();
         if (!question) {
@@ -36,9 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         inputSection.classList.add('hidden');
         statusSection.classList.remove('hidden');
+        traceSection.classList.remove('hidden');
+        traceLog.innerHTML = ''; // Clear previous traces
         submitBtn.disabled = true;
         resetCards();
         updateStatus("🏛️ Summoning the Model Conclave...", 5);
+        logTrace("System", "Initializing multi-agent session...", true);
 
         try {
             const response = await fetch('/api/chat_stream', {
@@ -82,20 +101,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleStageChange(text) {
+        logTrace("System", `--- ${text} ---`, true);
         if (text.includes("Stage 1")) {
-            updateStatus("🧪 Stage 1: Agent A is performing primary web research...", 20);
+            updateStatus("🧪 Stage 1: Discovery & Parallel Research Init...", 20);
             updateCard('ResearchAgentA', 'active', 'Initializing...');
         } else if (text.includes("Stage 2")) {
-            updateStatus("📈 Stage 2: Agent B is conducting analytical trend verification...", 45);
-            updateCard('ResearchAgentA', 'completed', '5 Citations Verified');
+            updateStatus("📈 Stage 2: Parallel Multi-perspective Analysis...", 60);
             updateCard('ResearchAgentB', 'active', 'Initializing...');
-        } else if (text.includes("Stage 3")) {
-            updateStatus("🔧 Stage 3: Agent C is executing technical feasibility checks...", 70);
-            updateCard('ResearchAgentB', 'completed', '5 Citations Verified');
             updateCard('ResearchAgentC', 'active', 'Initializing...');
-        } else if (text.includes("Stage 4")) {
-            updateStatus("🏛️ Stage 4: Synthesizing consensus and final report...", 90);
-            updateCard('ResearchAgentC', 'completed', '5 Citations Verified');
+        } else if (text.includes("Stage 3")) {
+            updateStatus("🏛️ Stage 3: Synthesizing grounded final report...", 90);
+            updateCard('ResearchAgentA', 'completed', 'Analysis Done');
+            updateCard('ResearchAgentB', 'completed', 'Analysis Done');
+            updateCard('ResearchAgentC', 'completed', 'Analysis Done');
             updateCard('SynthesizerAgent', 'active', 'Synthesizing...');
         }
     }
@@ -104,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update the main status line with the live agent thought/action
         const cleanText = text.replace(/\[Stage.*?\]/g, '').trim();
         statusText.innerHTML = `<span class="live-tag">LIVE</span> [${author}] ${cleanText}`;
+        logTrace(author, cleanText);
         
         // Update the status on the card specifically
         if (cards[author]) {
@@ -131,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         queryInput.value = '';
         inputSection.classList.remove('hidden');
         statusSection.classList.add('hidden');
+        traceSection.classList.add('hidden');
         resultSection.classList.add('hidden');
         submitBtn.disabled = false;
         progressBar.style.width = '0%';

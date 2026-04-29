@@ -167,3 +167,45 @@ button:hover { background-color: #1557b0; }
 }
 
 #markdownResult th { background-color: #f8f9fa; }
+
+.trace-section {
+    background: #202124;
+    color: #e8eaed;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.trace-section h3 {
+    margin-top: 0;
+    color: #8ab4f8;
+    font-weight: 400;
+    border-bottom: 1px solid #3c4043;
+    padding-bottom: 10px;
+}
+
+.trace-entry {
+    margin-bottom: 8px;
+    padding-left: 15px;
+    border-left: 2px solid #3c4043;
+}
+
+.trace-author {
+    color: #8ab4f8;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.trace-text {
+    color: #bdc1c6;
+}
+
+.trace-entry.system {
+    color: #81c995;
+    font-style: italic;
+    border-left-color: #81c995;
+}

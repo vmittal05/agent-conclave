@@ -56,6 +56,7 @@ async def create_orchestrator_session(user_id: str) -> str:
 # --- Endpoints ---
 
 @app.post("/api/chat_stream")
+@traceable(run_type="chain", name="Model_Conclave_Session")
 async def chat_stream(request: ChatRequest):
     """Streaming endpoint for the UI to monitor progress and get the final report."""
     
