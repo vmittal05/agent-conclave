@@ -11,7 +11,15 @@ SERVICE_ACCOUNT="conclave-runner@$PROJECT_ID.iam.gserviceaccount.com"
 echo "Using Project: $PROJECT_ID"
 echo "Using Region: $REGION"
 
-# --- 1. Tool Servers (MCP) ---
+# --- 1. Tool Servers (MCP) & Registry ---
+
+echo "Deploying Registry Service..."
+gcloud run deploy conclave-registry \
+    --source . \
+    --command "python" \
+    --args "mcp_servers/registry_server.py" \
+    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
+REGISTRY_URL=$(gcloud run services describe conclave-registry --region $REGION --format='value(status.url)')
 
 echo "Deploying Database MCP..."
 gcloud run deploy conclave-mcp-db \
@@ -34,33 +42,34 @@ SEARCH_MCP_URL=$(gcloud run services describe conclave-mcp-search --region $REGI
 
 # --- 2. Research & Synthesizer Agents ---
 
-COMMON_AGENT_VARS="MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True"
+LANGSMITH_VARS="LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave"
+COMMON_AGENT_VARS="AGENT_REGISTRY_URL=$REGISTRY_URL,MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS"
 
-echo "Deploying Research Agent A..."
-gcloud run deploy conclave-agent-a --source agents/research_a --set-env-vars "$COMMON_AGENT_VARS" --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
-AGENT_A_URL=$(gcloud run services describe conclave-agent-a --region $REGION --format='value(status.url)')
+deploy_agent() {
+    local name=$1
+    local source=$2
+    echo "Deploying $name..."
+    gcloud run deploy $name --source $source \
+        --set-env-vars "$COMMON_AGENT_VARS" \
+        --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
+        --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
+    local url=$(gcloud run services describe $name --region $REGION --format='value(status.url)')
+    echo "Updating $name with PUBLIC_AGENT_URL=$url"
+    gcloud run services update $name --set-env-vars "PUBLIC_AGENT_URL=$url" --region $REGION
+    echo $url
+}
 
-echo "Deploying Research Agent B..."
-gcloud run deploy conclave-agent-b --source agents/research_b --set-env-vars "$COMMON_AGENT_VARS" --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
-AGENT_B_URL=$(gcloud run services describe conclave-agent-b --region $REGION --format='value(status.url)')
-
-echo "Deploying Research Agent C..."
-gcloud run deploy conclave-agent-c --source agents/research_c --set-env-vars "$COMMON_AGENT_VARS" --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
-AGENT_C_URL=$(gcloud run services describe conclave-agent-c --region $REGION --format='value(status.url)')
-
-echo "Deploying Synthesizer Agent..."
-gcloud run deploy conclave-agent-synth --source agents/synthesizer --set-env-vars "$COMMON_AGENT_VARS" --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
-AGENT_SYNTH_URL=$(gcloud run services describe conclave-agent-synth --region $REGION --format='value(status.url)')
+AGENT_A_URL=$(deploy_agent "conclave-agent-a" "agents/research_a")
+AGENT_B_URL=$(deploy_agent "conclave-agent-b" "agents/research_b")
+AGENT_C_URL=$(deploy_agent "conclave-agent-c" "agents/research_c")
+AGENT_SYNTH_URL=$(deploy_agent "conclave-agent-synth" "agents/synthesizer")
 
 # --- 3. Orchestrator & Backend ---
 
 echo "Deploying Orchestrator..."
 gcloud run deploy conclave-orchestrator \
     --source agents/orchestrator \
-    --set-env-vars "RESEARCH_A_AGENT_CARD_URL=$AGENT_A_URL/a2a/agent/.well-known/agent-card.json" \
-    --set-env-vars "RESEARCH_B_AGENT_CARD_URL=$AGENT_B_URL/a2a/agent/.well-known/agent-card.json" \
-    --set-env-vars "RESEARCH_C_AGENT_CARD_URL=$AGENT_C_URL/a2a/agent/.well-known/agent-card.json" \
-    --set-env-vars "SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json" \
+    --set-env-vars "AGENT_REGISTRY_URL=$REGISTRY_URL,SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json" \
     --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated
 ORCHESTRATOR_URL=$(gcloud run services describe conclave-orchestrator --region $REGION --format='value(status.url)')
 

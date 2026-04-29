@@ -108,7 +108,14 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
     import os
     import time
     registry_url = os.getenv("AGENT_REGISTRY_URL", "http://localhost:8012")
-    agent_url = f"http://localhost:{agent_port}/a2a/{agent_name}"
+    
+    # Use PUBLIC_AGENT_URL if set (for Cloud Run), otherwise fallback to localhost
+    public_url = os.getenv("PUBLIC_AGENT_URL")
+    if public_url:
+        agent_url = f"{public_url.rstrip('/')}/a2a/{agent_name}"
+    else:
+        agent_url = f"http://localhost:{agent_port}/a2a/{agent_name}"
+        
     card_url = f"{agent_url}/.well-known/agent-card.json"
     
     # Wait for the agent to actually be up
@@ -116,20 +123,22 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
     async with httpx.AsyncClient(timeout=10.0) as client:
         for i in range(max_retries):
             try:
-                # 1. Fetch the Card
-                response = await client.get(card_url)
+                # 1. Fetch the Card - if we have a public URL, we might need to fetch from localhost:port still
+                # but the URL we REGISTER should be the public one.
+                internal_card_url = f"http://localhost:{agent_port}/a2a/{agent_name}/.well-known/agent-card.json"
+                response = await client.get(internal_card_url)
                 if response.status_code == 200:
                     card_data = response.json()
-                    # 2. Add full URL to the card for the registry
+                    # 2. Add full PUBLIC URL to the card for the registry
                     card_data["url"] = agent_url
                     
                     # 3. Register with Registry Service
                     reg_response = await client.post(f"{registry_url}/register", json=card_data)
                     if reg_response.status_code == 200:
-                        print(f"✅ Successfully registered {agent_name} with Registry.")
+                        print(f"✅ Successfully registered {agent_name} with Registry at {agent_url}")
                         return True
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Registration attempt {i+1} failed: {e}")
             await asyncio.sleep(2)
     
     print(f"❌ Failed to register {agent_name} after {max_retries} attempts.")

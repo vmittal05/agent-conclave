@@ -1,5 +1,24 @@
 steps:
-  # --- 1. Tool Servers (MCP) ---
+  # --- 1. Registry & Tool Servers (MCP) ---
+
+  # Registry Service
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'conclave-registry'
+      - '--source'
+      - '.'
+      - '--command'
+      - 'python'
+      - '--args'
+      - 'mcp_servers/registry_server.py'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--no-allow-unauthenticated'
 
   # Database MCP
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -50,22 +69,78 @@ steps:
   # Agent A
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
-    args: ['run', 'deploy', 'conclave-agent-a', '--source', 'agents/research_a', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+    args: 
+      - 'run'
+      - 'deploy'
+      - 'conclave-agent-a'
+      - '--source'
+      - 'agents/research_a'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave'
+      - '--set-secrets'
+      - 'LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest'
+      - '--no-allow-unauthenticated'
 
   # Agent B
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
-    args: ['run', 'deploy', 'conclave-agent-b', '--source', 'agents/research_b', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+    args: 
+      - 'run'
+      - 'deploy'
+      - 'conclave-agent-b'
+      - '--source'
+      - 'agents/research_b'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave'
+      - '--set-secrets'
+      - 'LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest'
+      - '--no-allow-unauthenticated'
 
   # Agent C
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
-    args: ['run', 'deploy', 'conclave-agent-c', '--source', 'agents/research_c', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+    args: 
+      - 'run'
+      - 'deploy'
+      - 'conclave-agent-c'
+      - '--source'
+      - 'agents/research_c'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave'
+      - '--set-secrets'
+      - 'LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest'
+      - '--no-allow-unauthenticated'
 
   # Synthesizer
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
-    args: ['run', 'deploy', 'conclave-agent-synth', '--source', 'agents/synthesizer', '--region', 'us-central1', '--service-account', 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com', '--no-allow-unauthenticated']
+    args: 
+      - 'run'
+      - 'deploy'
+      - 'conclave-agent-synth'
+      - '--source'
+      - 'agents/synthesizer'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave'
+      - '--set-secrets'
+      - 'LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest'
+      - '--no-allow-unauthenticated'
 
   # --- 3. Orchestrator & Backend ---
 
@@ -83,7 +158,9 @@ steps:
       - '--service-account'
       - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
       - '--set-env-vars'
-      - 'RESEARCH_A_AGENT_CARD_URL=https://conclave-agent-a-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,RESEARCH_B_AGENT_CARD_URL=https://conclave-agent-b-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,RESEARCH_C_AGENT_CARD_URL=https://conclave-agent-c-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,SYNTHESIZER_AGENT_CARD_URL=https://conclave-agent-synth-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json'
+      - 'AGENT_REGISTRY_URL=https://conclave-registry-qn3qzmNm-uc.a.run.app,SYNTHESIZER_AGENT_CARD_URL=https://conclave-agent-synth-qn3qzmNm-uc.a.run.app/a2a/agent/.well-known/agent-card.json,LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave'
+      - '--set-secrets'
+      - 'LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest'
       - '--no-allow-unauthenticated'
 
   # Backend Gateway
@@ -100,7 +177,9 @@ steps:
       - '--service-account'
       - 'conclave-runner@$PROJECT_ID.iam.gserviceaccount.com'
       - '--set-env-vars'
-      - 'ORCHESTRATOR_URL=https://conclave-orchestrator-qn3qzmNm-uc.a.run.app,GCP_PROJECT_ID=$PROJECT_ID'
+      - 'ORCHESTRATOR_URL=https://conclave-orchestrator-qn3qzmNm-uc.a.run.app,GCP_PROJECT_ID=$PROJECT_ID,LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave'
+      - '--set-secrets'
+      - 'LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest'
       - '--allow-unauthenticated'
 
 options:

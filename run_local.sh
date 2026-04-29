@@ -13,7 +13,7 @@ export MOCK_MODE=${MOCK_MODE:-false}
 
 # LangSmith Observability
 export LANGCHAIN_TRACING_V2=true
-export LANGCHAIN_PROJECT="Model-Conclave-Hackathon"
+export LANGCHAIN_PROJECT="agent-conclave"
 # export LANGCHAIN_API_KEY="your-key-here" 
 
 echo "Starting Database MCP Server on port 8010..."

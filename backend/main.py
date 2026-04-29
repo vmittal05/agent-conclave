@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from google.cloud import firestore
 from google.genai import types as genai_types
 from dotenv import load_dotenv
+from langsmith import traceable
 
 load_dotenv()
 
