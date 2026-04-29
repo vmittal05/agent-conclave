@@ -21,9 +21,15 @@ export PORT=8011
 poetry run python mcp_servers/search_server.py &
 SEARCH_MCP_PID=$!
 
+echo "Starting Agent Registry Service on port 8012..."
+export PORT=8012
+poetry run python mcp_servers/registry_server.py &
+REGISTRY_PID=$!
+
 # Update MCP URLs for agents
 export MCP_DB_SERVER_URL=http://localhost:8010
 export MCP_SEARCH_SERVER_URL=http://localhost:8011
+export AGENT_REGISTRY_URL=http://localhost:8012
 
 # Start each agent microservice
 # Note: ADK names the A2A app "agent" by default when run from the agent folder
@@ -76,5 +82,5 @@ echo "All agents, MCP servers, and backend started!"
 echo "Backend API: http://localhost:8080"
 echo "Press Ctrl+C to stop all processes."
 
-trap "kill $DB_MCP_PID $SEARCH_MCP_PID $RESEARCH_A_PID $RESEARCH_B_PID $RESEARCH_C_PID $SYNTHESIZER_PID $ORCHESTRATOR_PID $BACKEND_PID; exit" INT
+trap "kill $DB_MCP_PID $SEARCH_MCP_PID $REGISTRY_PID $RESEARCH_A_PID $RESEARCH_B_PID $RESEARCH_C_PID $SYNTHESIZER_PID $ORCHESTRATOR_PID $BACKEND_PID; exit" INT
 wait

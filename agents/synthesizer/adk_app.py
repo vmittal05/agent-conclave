@@ -266,6 +266,15 @@ def main(
         log_level=log_level.lower(),
     )
     server = uvicorn.Server(config)
+    
+    if a2a:
+        import threading
+        from a2a_utils import register_agent_with_registry
+        # Run registration in background thread
+        def run_registration():
+            asyncio.run(register_agent_with_registry("agent", port))
+        threading.Thread(target=run_registration, daemon=True).start()
+
     server.run()
 
 
