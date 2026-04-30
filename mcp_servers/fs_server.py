@@ -37,7 +37,7 @@ class GCSReadRequest(BaseModel):
 
 @app.post("/tools/gcs_write")
 async def gcs_write(req: GCSWriteRequest):
-    """Write a file to GCS."""
+    """Write a file to GCS. Supports text or base64 binary content."""
     if not GCS_BUCKET_NAME:
         raise HTTPException(status_code=500, detail="GCS_BUCKET_NAME not configured")
         
@@ -46,13 +46,30 @@ async def gcs_write(req: GCSWriteRequest):
     try:
         bucket = client.bucket(GCS_BUCKET_NAME)
         blob = bucket.blob(req.file_path)
-        blob.upload_from_string(req.content, content_type=req.content_type)
         
-        # Return the public URL or gs:// path
+        # Check if content looks like base64 binary (e.g. from code interpreter)
+        if req.content_type in ["image/png", "image/jpeg"] or len(req.content) > 1000:
+            try:
+                # Attempt to decode as base64 if it's an image
+                decoded_content = base64.b64decode(req.content)
+                blob.upload_from_string(decoded_content, content_type=req.content_type)
+            except:
+                # Fallback to string
+                blob.upload_from_string(req.content, content_type=req.content_type)
+        else:
+            blob.upload_from_string(req.content, content_type=req.content_type)
+        
+        # Ensure the blob is publicly readable for the UI to display it
+        try:
+            blob.make_public()
+        except:
+            # If uniform bucket-level access is on, this might fail, which is fine
+            pass
+            
         return {
             "status": "success",
             "gs_path": f"gs://{GCS_BUCKET_NAME}/{req.file_path}",
-            "public_url": f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/{req.file_path}"
+            "public_url": blob.public_url
         }
     except Exception as e:
         logger.error(f"GCS Write Error: {e}")
