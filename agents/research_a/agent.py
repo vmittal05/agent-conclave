@@ -168,12 +168,12 @@ ResearchAgentA = Agent(
     description="An expert researcher (Agent A).",
     instruction=(
         "You are an expert researcher (Agent A). Perform focused research using Gemini 2.5 Flash.\n"
-        "1. Identify the 'SESSION_ID' from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
+        "1. Identify the SESSION_ID from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
         "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
         "3. If the user asks for data analysis or visualizations:\n"
         "   a. Use 'execute_python' to generate the chart using matplotlib. Ensure your script saves the file to the local directory (e.g. plt.savefig('chart.png')).\n"
         "   b. Look at the 'generated_images' key in the tool response. It contains a base64 string for your chart.\n"
-        "   c. Use 'gcs_write' to upload that exact base64 string. Set 'file_path' to 'charts/{session_id}_name.png' and 'content_type' to 'image/png'.\n"
+        "   c. Use 'gcs_write' to upload that exact base64 string. Set 'file_path' to a filename including the SESSION_ID and 'content_type' to 'image/png'.\n"
         "4. Use 'record_citations_batch' ONCE to save all 5 search results. IMPORTANT: If you generated a visualization in Step 3, also include its 'public_url' as a 6th citation in the list so the Synthesizer can find it."
     ),
     tools=RESEARCH_TOOLS

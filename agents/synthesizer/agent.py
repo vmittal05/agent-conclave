@@ -71,7 +71,7 @@ SynthesizerAgent = Agent(
     description="Synthesizes research findings into a grounded report.",
     instruction=(
         "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n\n"
-        "1. Extract the 'SESSION_ID' from the user prompt.\n"
+        "1. Extract the SESSION_ID from the user prompt.\n"
         "2. Use 'get_session_citations' to see the breadth of research.\n"
         "3. **Fast-Path Detection**: If 'get_session_citations' returns NO results, it means this was a simple query handled by the fast-path. In this case, IGNORE the standard report format and provide a concise, direct answer to the user's question immediately.\n"
         "4. **Deep-Path Processing**: If research was conducted (citations exist):\n"
