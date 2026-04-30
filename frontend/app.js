@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
         traceLog.scrollTop = traceLog.scrollHeight;
     }
 
+    let accumulatedMarkdown = "";
+
     async function startResearch() {
         const question = queryInput.value.trim();
         if (!question) {
@@ -50,10 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        accumulatedMarkdown = ""; // Reset accumulation
         inputSection.classList.add('hidden');
         statusSection.classList.remove('hidden');
         traceSection.classList.remove('hidden');
         traceLog.innerHTML = ''; // Clear previous traces
+        markdownResult.innerHTML = ''; // Clear previous results
         submitBtn.disabled = true;
         resetCards();
         updateStatus("🏛️ Summoning the Model Conclave...", 5);
@@ -86,8 +90,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             handleStageChange(data.text);
                         } else if (data.type === 'activity') {
                             handleActivity(data.author, data.text);
+                        } else if (data.type === 'partial_result') {
+                            accumulatedMarkdown += data.text;
+                            updateLiveResult(accumulatedMarkdown);
                         } else if (data.type === 'result') {
-                            showResult(data.text);
+                            showFinalResult(data.text || accumulatedMarkdown);
                         }
                     } catch (e) {
                         console.error("Error parsing NDJSON chunk", e);
@@ -100,42 +107,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function handleStageChange(text) {
-        logTrace("System", `--- ${text} ---`, true);
-        if (text.includes("Stage 1")) {
-            updateStatus("🧪 Stage 1: Discovery & Parallel Research Init...", 20);
-            updateCard('ResearchAgentA', 'active', 'Initializing...');
-        } else if (text.includes("Stage 2")) {
-            updateStatus("📈 Stage 2: Parallel Multi-perspective Analysis...", 60);
-            updateCard('ResearchAgentB', 'active', 'Initializing...');
-            updateCard('ResearchAgentC', 'active', 'Initializing...');
-        } else if (text.includes("Stage 3")) {
-            updateStatus("🏛️ Stage 3: Synthesizing grounded final report...", 90);
-            updateCard('ResearchAgentA', 'completed', 'Analysis Done');
-            updateCard('ResearchAgentB', 'completed', 'Analysis Done');
-            updateCard('ResearchAgentC', 'completed', 'Analysis Done');
-            updateCard('SynthesizerAgent', 'active', 'Synthesizing...');
+    function updateLiveResult(markdown) {
+        if (resultSection.classList.contains('hidden')) {
+            resultSection.classList.remove('hidden');
         }
+        markdownResult.innerHTML = marked.parse(markdown);
+        // Scroll to the bottom of the result as it grows
+        markdownResult.scrollTop = markdownResult.scrollHeight;
     }
 
-    function handleActivity(author, text) {
-        // Update the main status line with the live agent thought/action
-        const cleanText = text.replace(/\[Stage.*?\]/g, '').trim();
-        statusText.innerHTML = `<span class="live-tag">LIVE</span> [${author}] ${cleanText}`;
-        logTrace(author, cleanText);
-        
-        // Update the status on the card specifically
-        if (cards[author]) {
-            cards[author].querySelector('.card-status').innerText = cleanText;
-        }
-    }
-
-    function updateStatus(text, percent) {
-        statusText.innerText = text;
-        progressBar.style.width = percent + '%';
-    }
-
-    function showResult(markdown) {
+    function showFinalResult(markdown) {
         updateCard('SynthesizerAgent', 'completed', 'Final Report Published');
         statusSection.classList.add('hidden');
         resultSection.classList.remove('hidden');

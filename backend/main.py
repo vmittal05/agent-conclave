@@ -164,8 +164,8 @@ async def chat_stream(request: ChatRequest):
                                     yield json.dumps({"type": "progress", "text": text}) + "\n"
                                 elif author == "SynthesizerAgent":
                                     final_text += text
-                                    logger.debug(f"Accumulating final report text from {author}")
-                                    yield json.dumps({"type": "activity", "author": author, "text": "Drafting final report..."}) + "\n"
+                                    logger.debug(f"Streaming partial report from {author}")
+                                    yield json.dumps({"type": "partial_result", "text": text}) + "\n"
                                 else:
                                     display_text = (text[:100] + '...') if len(text) > 100 else text
                                     logger.info(f"Activity update from {author}: {display_text}")

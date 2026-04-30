@@ -241,5 +241,6 @@ root_agent = SequentialAgent(
             agent_card=os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json"),
             httpx_client=create_authenticated_client(os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json"), timeout=httpx.Timeout(180.0, connect=10.0))
         )
+
     ]
 )

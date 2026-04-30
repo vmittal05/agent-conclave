@@ -64,19 +64,20 @@ async def semantic_citation_lookup(session_id: str, query: str) -> List[Dict[str
         logger.error(f"Semantic Search Error: {e}")
         return []
 
-# Synthesizer Agent: Gemini 3.1 Pro
+# Synthesizer Agent: Gemini 2.5 Pro
 SynthesizerAgent = Agent(
     name="SynthesizerAgent",
-    model="gemini-3.1-pro-preview",
+    model="gemini-2.5-pro",
     description="Synthesizes research findings into a grounded report.",
     instruction=(
-        "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n\n"
-        "1. Extract the SESSION_ID from the user prompt.\n"
+        "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n"
+        "I am performing focused synthesis using Gemini 2.5 Pro.\n\n"
+        "1. Extract the 'SESSION_ID' from the user prompt.\n"
         "2. Use 'get_session_citations' to see the breadth of research.\n"
         "3. **Fast-Path Detection**: If 'get_session_citations' returns NO results, it means this was a simple query handled by the fast-path. In this case, IGNORE the standard report format and provide a concise, direct answer to the user's question immediately.\n"
         "4. **Deep-Path Processing**: If research was conducted (citations exist):\n"
         "   a. For specific technical points, use 'semantic_citation_lookup'.\n"
-        "   b. Check for generated 'charts/' or images in the citations.\n"
+        "   b. **CRITICAL: Chart Search**: Look specifically for citations with a source_url containing '.png' or 'storage.googleapis.com'. These are generated charts. You MUST include them.\n"
         "   c. Produce the final report matching this format:\n\n"
         "## Model Council Synthesis Report\n\n"
         "### Original Question\n"
@@ -88,10 +89,10 @@ SynthesizerAgent = Agent(
         "### 3. Unique Discoveries\n"
         "Markdown table with unique insights.\n\n"
         "### 4. Visual Analysis\n"
-        "If any charts or visualizations were generated during research, embed them here using markdown syntax: `![Chart Description](PUBLIC_URL)`.\n\n"
+        "You MUST embed any charts found in Step 4b here using markdown syntax: `![Chart Description](PUBLIC_URL)`. Provide a brief analytical summary explaining the chart's data.\n\n"
         "### 5. Synthesis & Grounded Conclusion\n"
         "Provide a high-confidence conclusion.\n\n"
-        "CRITICAL: Be strictly grounded. If you find conflicting data, highlight it. Do NOT make up citations."
+        "CRITICAL: Be strictly grounded. If I find conflicting data, highlight it. Do NOT make up citations."
     ),
     tools=[get_session_citations, semantic_citation_lookup]
 )
