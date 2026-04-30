@@ -1,5 +1,6 @@
 import os
 import logging
+import base64
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -47,23 +48,25 @@ async def gcs_write(req: GCSWriteRequest):
         bucket = client.bucket(GCS_BUCKET_NAME)
         blob = bucket.blob(req.file_path)
         
-        # Determine content to upload
-        is_binary = False
-        if req.content_type in ["image/png", "image/jpeg"] or len(req.content) > 1000:
+        # Check if we should treat this as base64 encoded binary (images)
+        if req.content_type in ["image/png", "image/jpeg"]:
             try:
-                # Attempt to decode as base64
-                data_to_upload = base64.b64decode(req.content)
-                is_binary = True
-            except:
-                data_to_upload = req.content
+                logger.debug("Decoding base64 content for image upload...")
+                # Remove common data URI prefix if present (e.g. "data:image/png;base64,")
+                content = req.content
+                if "," in content[:100]:
+                    content = content.split(",", 1)[1]
+                
+                data_to_upload = base64.b64decode(content)
+            except Exception as e:
+                logger.error(f"Base64 decoding failed: {e}")
+                raise HTTPException(status_code=400, detail=f"Invalid base64 content for image: {str(e)}")
         else:
+            # Default to text
             data_to_upload = req.content
 
-        # Upload with content type
-        if is_binary:
-            blob.upload_from_string(data_to_upload, content_type=req.content_type)
-        else:
-            blob.upload_from_string(data_to_upload, content_type=req.content_type)
+        # Upload to GCS
+        blob.upload_from_string(data_to_upload, content_type=req.content_type)
         
         # Ensure the blob is publicly readable
         try:

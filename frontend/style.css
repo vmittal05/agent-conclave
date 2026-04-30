@@ -154,6 +154,14 @@ button:hover { background-color: #1557b0; }
     font-weight: bold;
 }
 
+#markdownResult img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 20px 0;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
 #markdownResult table {
     width: 100%;
     border-collapse: collapse;
@@ -178,14 +186,36 @@ button:hover { background-color: #1557b0; }
     font-size: 13px;
     max-height: 400px;
     overflow-y: auto;
+    transition: all 0.3s ease;
 }
 
-.trace-section h3 {
-    margin-top: 0;
-    color: #8ab4f8;
-    font-weight: 400;
+.trace-section.collapsed {
+    max-height: 60px;
+    overflow: hidden;
+}
+
+.trace-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
     border-bottom: 1px solid #3c4043;
     padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.trace-header h3 {
+    margin: 0;
+    color: #8ab4f8;
+    font-weight: 400;
+}
+
+.collapse-btn {
+    color: #8ab4f8;
+    font-size: 12px;
+    background: #3c4043;
+    padding: 4px 8px;
+    border-radius: 4px;
 }
 
 .trace-entry {

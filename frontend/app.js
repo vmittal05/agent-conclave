@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputSection = document.querySelector('.input-section');
     const traceSection = document.getElementById('traceSection');
     const traceLog = document.getElementById('traceLog');
+    const traceHeader = document.getElementById('traceHeader');
+    const collapseBtn = document.getElementById('collapseBtn');
 
     const cards = {
         'ResearchAgentA': document.getElementById('card-research_a'),
@@ -20,6 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     submitBtn.addEventListener('click', startResearch);
     newQueryBtn.addEventListener('click', resetUI);
+    traceHeader.addEventListener('click', toggleTrace);
+
+    function toggleTrace() {
+        traceSection.classList.toggle('collapsed');
+        collapseBtn.innerText = traceSection.classList.contains('collapsed') ? 'Expand' : 'Collapse';
+    }
 
     function updateCard(id, state, msg) {
         const card = cards[id];
@@ -56,6 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
         inputSection.classList.add('hidden');
         statusSection.classList.remove('hidden');
         traceSection.classList.remove('hidden');
+        traceSection.classList.remove('collapsed');
+        collapseBtn.innerText = 'Collapse';
         traceLog.innerHTML = ''; // Clear previous traces
         markdownResult.innerHTML = ''; // Clear previous results
         submitBtn.disabled = true;
@@ -107,6 +117,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function handleStageChange(text) {
+        logTrace("System", `--- ${text} ---`, true);
+        if (text.includes("Stage 1")) {
+            updateStatus("🧪 Stage 1: Discovery & Parallel Research Init...", 20);
+            updateCard('ResearchAgentA', 'active', 'Initializing...');
+        } else if (text.includes("Stage 2")) {
+            updateStatus("📈 Stage 2: Parallel Multi-perspective Analysis...", 60);
+            updateCard('ResearchAgentB', 'active', 'Initializing...');
+            updateCard('ResearchAgentC', 'active', 'Initializing...');
+        } else if (text.includes("Stage 3")) {
+            updateStatus("📊 Stage 3: Visualization: Analyzing data and generating charts...", 80);
+            updateCard('ResearchAgentA', 'completed', 'Analysis Done');
+            updateCard('ResearchAgentB', 'completed', 'Analysis Done');
+            updateCard('ResearchAgentC', 'completed', 'Analysis Done');
+        } else if (text.includes("Stage 4")) {
+            updateStatus("🏛️ Stage 4: Synthesizing grounded final report...", 95);
+            updateCard('SynthesizerAgent', 'active', 'Synthesizing...');
+        }
+    }
+
+    function handleActivity(author, text) {
+        // Update the main status line with the live agent thought/action
+        const cleanText = text.replace(/\[Stage.*?\]/g, '').trim();
+        statusText.innerHTML = `<span class="live-tag">LIVE</span> [${author}] ${cleanText}`;
+        logTrace(author, cleanText);
+        
+        // Update the status on the card specifically
+        if (cards[author]) {
+            cards[author].querySelector('.card-status').innerText = cleanText;
+        }
+    }
+
+    function updateStatus(text, percent) {
+        statusText.innerText = text;
+        progressBar.style.width = percent + '%';
+    }
+
     function updateLiveResult(markdown) {
         if (resultSection.classList.contains('hidden')) {
             resultSection.classList.remove('hidden');
@@ -121,6 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
         statusSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
         markdownResult.innerHTML = marked.parse(markdown);
+        
+        // Auto-collapse the trace to show the report more clearly
+        traceSection.classList.add('collapsed');
+        collapseBtn.innerText = 'Expand';
     }
 
     function resetCards() {
