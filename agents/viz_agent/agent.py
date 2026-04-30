@@ -2,6 +2,7 @@ import os
 import httpx
 import asyncio
 import logging
+import base64
 from typing import List, Dict, Any, Optional
 from google import genai
 from google.adk import Agent
@@ -30,6 +31,7 @@ genai_client = genai.Client(
     location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
+
 # --- Viz Tools ---
 
 @traceable(run_type="tool", name="Viz_GenerateAndUpload")
@@ -50,8 +52,10 @@ async def generate_and_upload_chart(session_id: str, code: str, chart_name: str)
             img_name = list(images.keys())[0]
             base64_data = images[img_name]
 
-        # 2. Upload to GCS
-        file_path = f"charts/{session_id.strip()}_{chart_name.strip()}.png"
+        # 2. Upload to GCS - Sanitize filename
+        clean_name = "".join([c if c.isalnum() else "_" for c in chart_name.strip()])
+        file_path = f"charts/{session_id.strip()}_{clean_name}.png"
+        
         async with create_authenticated_client(FS_URL) as fs_client:
             fs_res = await fs_client.post(f"{FS_URL}/tools/gcs_write", json={
                 "file_path": file_path,
@@ -116,7 +120,7 @@ VisualizationAgent = Agent(
         "2. Use 'get_session_citations' to retrieve the raw data gathered during the research phase.\n"
         "3. **Data Analysis**: Extract numerical data or trends from the citations.\n"
         "4. **Visualization**: Use the 'generate_and_upload_chart' tool to create and save a chart. "
-        "Provide your matplotlib code, the SESSION_ID, and a descriptive name for the chart.\n"
+        "Provide your matplotlib code, the SESSION_ID, and a SHORT_DESCRIPTIVE_NAME (no spaces) for the chart.\n"
         "5. **Finalize**: The tool will return a 'public_url'. Use 'record_chart_citation' to save this URL into the database using the SESSION_ID.\n\n"
         "If the question doesn't require a chart, just state that no visualization is needed."
     ),

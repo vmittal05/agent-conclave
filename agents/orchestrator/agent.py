@@ -126,7 +126,7 @@ class DynamicParallelResearch(BaseAgent):
             remote_agent = RemoteA2aAgent(
                 name=agent_info["name"],
                 agent_card=agent_well_known,
-                httpx_client=create_authenticated_client(agent_well_known, timeout=httpx.Timeout(300.0, connect=10.0))
+                httpx_client=create_authenticated_client(agent_well_known, timeout=httpx.Timeout(180.0, connect=10.0))
             )
             
             path = SequentialAgent(name=f"dynamic_path_{i}", sub_agents=[
@@ -230,7 +230,7 @@ root_agent = SequentialAgent(
             remote_agent=RemoteA2aAgent(
                 name="VisualizationAgent",
                 agent_card=os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"),
-                httpx_client=create_authenticated_client(os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"), timeout=httpx.Timeout(300.0, connect=10.0))
+                httpx_client=create_authenticated_client(os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"), timeout=httpx.Timeout(180.0, connect=10.0))
             )
         ),
         
@@ -239,7 +239,7 @@ root_agent = SequentialAgent(
         RemoteA2aAgent(
             name="SynthesizerAgent", 
             agent_card=os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json"),
-            httpx_client=create_authenticated_client(os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json"), timeout=httpx.Timeout(300.0, connect=10.0))
+            httpx_client=create_authenticated_client(os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json"), timeout=httpx.Timeout(180.0, connect=10.0))
         )
     ]
 )
