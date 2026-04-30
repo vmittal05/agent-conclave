@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'ResearchAgentA': document.getElementById('card-research_a'),
         'ResearchAgentB': document.getElementById('card-research_b'),
         'ResearchAgentC': document.getElementById('card-research_c'),
+        'VisualizationAgent': document.getElementById('card-visualization'),
         'SynthesizerAgent': document.getElementById('card-synthesizer')
     };
 
@@ -131,8 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
             updateCard('ResearchAgentA', 'completed', 'Analysis Done');
             updateCard('ResearchAgentB', 'completed', 'Analysis Done');
             updateCard('ResearchAgentC', 'completed', 'Analysis Done');
+            updateCard('VisualizationAgent', 'active', 'Analyzing Data...');
         } else if (text.includes("Stage 4")) {
             updateStatus("🏛️ Stage 4: Synthesizing grounded final report...", 95);
+            updateCard('VisualizationAgent', 'completed', 'Charts Generated');
             updateCard('SynthesizerAgent', 'active', 'Synthesizing...');
         }
     }
