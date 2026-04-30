@@ -21,6 +21,23 @@ document.addEventListener('DOMContentLoaded', () => {
         'SynthesizerAgent': document.getElementById('card-synthesizer')
     };
 
+    const authorMap = {
+        'ResearchAgentA': 'Expert Lens',
+        'ResearchAgentB': 'Analytical Lens',
+        'ResearchAgentC': 'Technical Lens',
+        'VisualizationAgent': 'Visualization Specialist',
+        'SynthesizerAgent': 'Council Synthesizer',
+        'query_router': 'Router',
+        'discovery_service': 'Discovery',
+        'dynamic_research_hub': 'Research Hub',
+        'viz_broadcaster': 'Viz Broadcaster',
+        'synth_broadcaster': 'Synth Broadcaster',
+        'system_start': 'System',
+        'system_research': 'System',
+        'system_viz': 'System',
+        'system_synth': 'System'
+    };
+
     submitBtn.addEventListener('click', startResearch);
     newQueryBtn.addEventListener('click', resetUI);
     traceHeader.addEventListener('click', toggleTrace);
@@ -42,10 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const entry = document.createElement('div');
         entry.className = isSystem ? 'trace-entry system' : 'trace-entry';
         
+        const displayName = authorMap[author] || author;
+        
         if (isSystem) {
             entry.innerHTML = `<span class="trace-text">${text}</span>`;
         } else {
-            entry.innerHTML = `<span class="trace-author">${author}:</span><span class="trace-text">${text}</span>`;
+            entry.innerHTML = `<span class="trace-author">${displayName}:</span><span class="trace-text">${text}</span>`;
         }
         
         traceLog.appendChild(entry);
@@ -143,7 +162,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleActivity(author, text) {
         // Update the main status line with the live agent thought/action
         const cleanText = text.replace(/\[Stage.*?\]/g, '').trim();
-        statusText.innerHTML = `<span class="live-tag">LIVE</span> [${author}] ${cleanText}`;
+        const displayName = authorMap[author] || author;
+        statusText.innerHTML = `<span class="live-tag">LIVE</span> [${displayName}] ${cleanText}`;
         logTrace(author, cleanText);
         
         // Update the status on the card specifically
