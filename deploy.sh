@@ -66,14 +66,14 @@ COMMON_AGENT_VARS="AGENT_REGISTRY_URL=$REGISTRY_URL,MCP_DB_SERVER_URL=$DB_MCP_UR
 deploy_agent() {
     local name=$1
     local source=$2
-    echo "Deploying $name..."
+    echo "Deploying $name..." >&2
     gcloud run deploy $name --source $source \
         --set-env-vars "$COMMON_AGENT_VARS" \
         --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
         --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT
     local url=$(gcloud run services describe $name --region $REGION --format='value(status.url)')
-    echo "Updating $name with PUBLIC_AGENT_URL=$url"
-    gcloud run services update $name --set-env-vars "PUBLIC_AGENT_URL=$url" --region $REGION
+    echo "Updating $name with PUBLIC_AGENT_URL=$url" >&2
+    gcloud run services update $name --update-env-vars "PUBLIC_AGENT_URL=$url" --region $REGION
     echo $url
 }
 
