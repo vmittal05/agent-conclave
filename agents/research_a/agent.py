@@ -95,16 +95,21 @@ async def record_citations_batch(
     model_id = "gemini-2.5-flash"
 
     try:
-        # 1. Generate embeddings for all snippets first
+        # 1. Generate embeddings for valid snippets first
         snippets = [cit.get("snippet") or cit.get("content") or "" for cit in citations]
-        embeddings = []
-        if snippets:
+        valid_snippets = [s for s in snippets if s and s.strip()]
+        embeddings_map = {}
+        
+        if valid_snippets:
             embed_res = genai_client.models.embed_content(
                 model="text-embedding-004",
-                contents=snippets,
+                contents=valid_snippets,
                 config=genai_types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
             )
-            embeddings = [e.values for e in embed_res.embeddings]
+            for i, s in enumerate(valid_snippets):
+                embeddings_map[s] = embed_res.embeddings[i].values
+        else:
+            return f"INFO: No valid snippets found to embed for session {db_session_id}."
 
         # Use authenticated client for Cloud Run service-to-service
         async with create_authenticated_client(DB_URL) as client:
@@ -130,7 +135,10 @@ async def record_citations_batch(
 
             # 3. Record all citations in the batch with embeddings
             count = 0
-            for i, cit in enumerate(citations):
+            for cit in citations:
+                snippet_text = cit.get("snippet") or cit.get("content")
+                embedding_vector = embeddings_map.get(snippet_text) if snippet_text else None
+                
                 sql_cit = """
                     INSERT INTO citations (model_run_id, source_url, source_type, title, snippet, embedding)
                     VALUES (:model_run_id, :source_url, :source_type, :title, :snippet, :embedding)
@@ -140,8 +148,8 @@ async def record_citations_batch(
                     "source_url": cit.get("source_url") or cit.get("url"),
                     "source_type": cit.get("source_type", "web"),
                     "title": cit.get("title", "No Title"),
-                    "snippet": cit.get("snippet") or cit.get("content"),
-                    "embedding": str(embeddings[i]) if i < len(embeddings) else None
+                    "snippet": snippet_text,
+                    "embedding": str(embedding_vector) if embedding_vector is not None else None
                 }
                 res_cit = await client.post(f"{DB_URL}/tools/sql_execute", json={"sql": sql_cit, "params": params_cit})
                 res_cit.raise_for_status()
