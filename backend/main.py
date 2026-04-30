@@ -148,21 +148,27 @@ async def chat_stream(request: ChatRequest):
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             data = line[6:]
+                            logger.info(f"Received event data from orchestrator: {data[:200]}...")
                             event = json.loads(data)
                             author = event.get("author", "Agent")
                             
                             if "content" in event and event["content"]:
                                 content = genai_types.Content.model_validate(event["content"])
                                 text = "".join([p.text for p in content.parts if p.text]) # type: ignore
-                                if not text: continue
+                                if not text: 
+                                    logger.debug("Received empty text event, skipping.")
+                                    continue
 
                                 if "[Stage" in text:
+                                    logger.info(f"Progress update: {text}")
                                     yield json.dumps({"type": "progress", "text": text}) + "\n"
                                 elif author == "SynthesizerAgent":
                                     final_text += text
+                                    logger.debug(f"Accumulating final report text from {author}")
                                     yield json.dumps({"type": "activity", "author": author, "text": "Drafting final report..."}) + "\n"
                                 else:
                                     display_text = (text[:100] + '...') if len(text) > 100 else text
+                                    logger.info(f"Activity update from {author}: {display_text}")
                                     yield json.dumps({"type": "activity", "author": author, "text": display_text}) + "\n"
         except Exception as e:
             logger.error(f"Stream error: {e}")

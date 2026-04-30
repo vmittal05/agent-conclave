@@ -142,7 +142,7 @@ ResearchAgentB = Agent(
 
 ResearchAgentC = Agent(
     name="ResearchAgentC",
-    model="gemini-2.5-pro",
+    model="gemini-2.5-flash",
     instruction=(
         "You are a technical researcher (Agent C). Focus on documentation. "
         "Gather exactly 5 high-quality citations. Record every source using 'record_citation'."

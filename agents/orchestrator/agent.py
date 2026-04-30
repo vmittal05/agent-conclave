@@ -54,12 +54,12 @@ class RouterAgent(BaseAgent):
         
         try:
             response = genai_client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-lite",
                 contents=prompt
             )
             decision = response.text.strip().upper()
             logger.info(f"Router Decision: {decision}")
-            
+
             if "SIMPLE" in decision:
                 ctx.session.state["skip_research"] = True
                 yield Event(author=self.name, content=genai_types.Content(parts=[genai_types.Part(text="⚡ Fast-Path: Query is simple. Bypassing research phase.")]), actions=EventActions(skip_summarization=True))
@@ -69,6 +69,8 @@ class RouterAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Router Error: {e}")
             ctx.session.state["skip_research"] = False # Default to research on error
+            yield Event(author=self.name, content=genai_types.Content(parts=[genai_types.Part(text=f"⚠️ Router Error: {str(e)}. Falling back to Deep-Path.")]), actions=EventActions(skip_summarization=True))
+
 
 class DiscoveryAgent(BaseAgent):
     """Queries the Registry to find suitable agents for the research task."""
