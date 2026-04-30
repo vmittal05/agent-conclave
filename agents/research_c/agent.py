@@ -52,34 +52,6 @@ async def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
     scoped_query = f"site:cloud.google.com {query}"
     return await search_web(scoped_query)
 
-@traceable(run_type="tool", name="AgentC_ExecutePython")
-async def execute_python(code: str) -> Dict[str, Any]:
-    """Execute Python code for data analysis or generating charts. Returns stdout/stderr."""
-    try:
-        async with create_authenticated_client(CODE_URL) as client:
-            response = await client.post(f"{CODE_URL}/tools/execute_python", json={"code": code}, timeout=60.0)
-            response.raise_for_status()
-            return response.json()
-    except Exception as e:
-        logger.error(f"Code MCP Error: {e}")
-        return {"error": str(e)}
-
-@traceable(run_type="tool", name="AgentC_GCSWrite")
-async def gcs_write(file_path: str, content: str, content_type: str = "text/plain") -> Dict[str, Any]:
-    """Write data or generated images to the cloud file system."""
-    try:
-        async with create_authenticated_client(FS_URL) as client:
-            response = await client.post(f"{FS_URL}/tools/gcs_write", json={
-                "file_path": file_path,
-                "content": content,
-                "content_type": content_type
-            })
-            response.raise_for_status()
-            return response.json()
-    except Exception as e:
-        logger.error(f"FS MCP Error: {e}")
-        return {"error": str(e)}
-
 @traceable(run_type="tool", name="AgentC_RecordCitations")
 async def record_citations_batch(
     tool_context: Any,
@@ -160,7 +132,7 @@ async def record_citations_batch(
         logger.error(f"DB Error in Agent C: {str(e)}")
         return f"ERROR: Failed to save to database: {str(e)}"
 
-RESEARCH_TOOLS = [search_web, search_gcp_docs, execute_python, gcs_write, record_citations_batch]
+RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
 ResearchAgentC = Agent(
     name="ResearchAgentC",
@@ -170,11 +142,7 @@ ResearchAgentC = Agent(
         "You are a technical researcher (Agent C). Perform focused research using Gemini 2.5 Flash.\n"
         "1. Identify the SESSION_ID from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
         "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
-        "3. If the user asks for data analysis or visualizations:\n"
-        "   a. Use 'execute_python' to generate the chart using matplotlib. Ensure your script saves the file to the local directory (e.g. plt.savefig('chart.png')).\n"
-        "   b. Look at the 'generated_images' key in the tool response. It contains a base64 string for your chart.\n"
-        "   c. Use 'gcs_write' to upload that exact base64 string. Set 'file_path' to a filename including the SESSION_ID and 'content_type' to 'image/png'.\n"
-        "4. Use 'record_citations_batch' ONCE to save all 5 search results. IMPORTANT: If you generated a visualization in Step 3, also include its 'public_url' as a 6th citation in the list so the Synthesizer can find it."
+        "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted SESSION_ID."
     ),
     tools=RESEARCH_TOOLS
 )

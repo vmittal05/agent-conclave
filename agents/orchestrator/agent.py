@@ -194,14 +194,22 @@ root_agent = SequentialAgent(
     sub_agents=[
         RouterAgent(name="query_router"),
 
-        StageNotifier("system_start", "[Stage 1/3] Discovery: Locating available research experts...", skip_on_fastpath=True),
+        StageNotifier("system_start", "[Stage 1/4] Discovery: Locating available research experts...", skip_on_fastpath=True),
         DiscoveryAgent(name="discovery_service"),
         
-        StageNotifier("system_research", "[Stage 2/3] Research: Executing parallel multi-perspective analysis...", skip_on_fastpath=True),
+        StageNotifier("system_research", "[Stage 2/4] Research: Executing parallel multi-perspective analysis...", skip_on_fastpath=True),
         DynamicParallelResearch(name="dynamic_research_hub"),
+
+        StageNotifier("system_viz", "[Stage 3/4] Visualization: Analyzing data and generating charts...", skip_on_fastpath=True),
+        PersonaBroadcaster("viz_broadcaster", "Perform data analysis and generate visualizations based on gathered data for:"),
+        RemoteA2aAgent(
+            name="VisualizationAgent",
+            agent_card=os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"),
+            httpx_client=create_authenticated_client(os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"))
+        ),
         
-        StageNotifier("system_synth", "[Stage 3/3] Synthesis: Generating grounded final report..."),
-        PersonaBroadcaster("synth_broadcaster", "Synthesize all gathered data to answer:"),
+        StageNotifier("system_synth", "[Stage 4/4] Synthesis: Generating grounded final report..."),
+        PersonaBroadcaster("synth_broadcaster", "Synthesize all gathered research and visualizations to answer:"),
         RemoteA2aAgent(
             name="SynthesizerAgent", 
             agent_card=os.environ.get("SYNTHESIZER_AGENT_CARD_URL", "http://localhost:8004/a2a/agent/.well-known/agent-card.json"),

@@ -81,13 +81,14 @@ AGENT_A_URL=$(deploy_agent "conclave-agent-a" "agents/research_a")
 AGENT_B_URL=$(deploy_agent "conclave-agent-b" "agents/research_b")
 AGENT_C_URL=$(deploy_agent "conclave-agent-c" "agents/research_c")
 AGENT_SYNTH_URL=$(deploy_agent "conclave-agent-synth" "agents/synthesizer")
+AGENT_VIZ_URL=$(deploy_agent "conclave-agent-viz" "agents/viz_agent")
 
 # --- 3. Orchestrator & Backend ---
 
 echo "Deploying Orchestrator..."
 gcloud run deploy conclave-orchestrator \
     --source agents/orchestrator \
-    --set-env-vars "AGENT_REGISTRY_URL=$REGISTRY_URL,SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
+    --set-env-vars "AGENT_REGISTRY_URL=$REGISTRY_URL,SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json,VIZ_AGENT_CARD_URL=$AGENT_VIZ_URL/a2a/agent/.well-known/agent-card.json,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
     --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
     --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT
 ORCHESTRATOR_URL=$(gcloud run services describe conclave-orchestrator --region $REGION --format='value(status.url)')

@@ -78,11 +78,18 @@ PUBLIC_AGENT_URL=http://localhost:8004 uv run adk_app.py --host 0.0.0.0 --port 8
 SYNTHESIZER_PID=$!
 popd
 
+echo "Starting Visualization Agent on port 8006..."
+pushd agents/viz_agent
+PUBLIC_AGENT_URL=http://localhost:8006 uv run adk_app.py --host 0.0.0.0 --port 8006 --a2a . &
+VIZ_PID=$!
+popd
+
 # All agents are at the /a2a/agent/ endpoint
 export RESEARCH_A_AGENT_CARD_URL=http://localhost:8001/a2a/agent/.well-known/agent-card.json
 export RESEARCH_B_AGENT_CARD_URL=http://localhost:8002/a2a/agent/.well-known/agent-card.json
 export RESEARCH_C_AGENT_CARD_URL=http://localhost:8003/a2a/agent/.well-known/agent-card.json
 export SYNTHESIZER_AGENT_CARD_URL=http://localhost:8004/a2a/agent/.well-known/agent-card.json
+export VIZ_AGENT_CARD_URL=http://localhost:8006/a2a/agent/.well-known/agent-card.json
 
 echo "Starting Orchestrator Agent on port 8005..."
 pushd agents/orchestrator
