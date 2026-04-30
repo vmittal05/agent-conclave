@@ -41,35 +41,44 @@ async def gcs_write(req: GCSWriteRequest):
     if not GCS_BUCKET_NAME:
         raise HTTPException(status_code=500, detail="GCS_BUCKET_NAME not configured")
         
-    logger.info(f"Writing to GCS: {req.file_path}")
+    logger.info(f"Writing to GCS: {req.file_path} (Type: {req.content_type})")
     client = get_storage_client()
     try:
         bucket = client.bucket(GCS_BUCKET_NAME)
         blob = bucket.blob(req.file_path)
         
-        # Check if content looks like base64 binary (e.g. from code interpreter)
+        # Determine content to upload
+        is_binary = False
         if req.content_type in ["image/png", "image/jpeg"] or len(req.content) > 1000:
             try:
-                # Attempt to decode as base64 if it's an image
-                decoded_content = base64.b64decode(req.content)
-                blob.upload_from_string(decoded_content, content_type=req.content_type)
+                # Attempt to decode as base64
+                data_to_upload = base64.b64decode(req.content)
+                is_binary = True
             except:
-                # Fallback to string
-                blob.upload_from_string(req.content, content_type=req.content_type)
+                data_to_upload = req.content
         else:
-            blob.upload_from_string(req.content, content_type=req.content_type)
+            data_to_upload = req.content
+
+        # Upload with content type
+        if is_binary:
+            blob.upload_from_string(data_to_upload, content_type=req.content_type)
+        else:
+            blob.upload_from_string(data_to_upload, content_type=req.content_type)
         
-        # Ensure the blob is publicly readable for the UI to display it
+        # Ensure the blob is publicly readable
         try:
             blob.make_public()
-        except:
-            # If uniform bucket-level access is on, this might fail, which is fine
-            pass
+        except Exception as e:
+            logger.warning(f"Could not make blob public (might be bucket policy): {e}")
+            
+        import time
+        public_url = f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/{req.file_path}?t={int(time.time())}"
+        logger.info(f"Successfully uploaded to GCS. Public URL: {public_url}")
             
         return {
             "status": "success",
             "gs_path": f"gs://{GCS_BUCKET_NAME}/{req.file_path}",
-            "public_url": blob.public_url
+            "public_url": public_url
         }
     except Exception as e:
         logger.error(f"GCS Write Error: {e}")

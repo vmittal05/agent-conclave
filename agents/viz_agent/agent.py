@@ -40,7 +40,7 @@ async def generate_and_upload_chart(session_id: str, code: str, chart_name: str)
     try:
         # 1. Generate the chart
         async with create_authenticated_client(CODE_URL) as code_client:
-            code_res = await code_client.post(f"{CODE_URL}/tools/execute_python", json={"code": code}, timeout=60.0)
+            code_res = await code_client.post(f"{CODE_URL}/tools/execute_python", json={"code": code}, timeout=120.0)
             code_res.raise_for_status()
             code_data = code_res.json()
             
@@ -61,7 +61,7 @@ async def generate_and_upload_chart(session_id: str, code: str, chart_name: str)
                 "file_path": file_path,
                 "content": base64_data,
                 "content_type": "image/png"
-            })
+            }, timeout=120.0)
             fs_res.raise_for_status()
             return fs_res.json() # Contains public_url
 
