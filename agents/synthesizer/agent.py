@@ -76,7 +76,7 @@ SynthesizerAgent = Agent(
         "2. Use 'get_session_citations' to see the breadth of research.\n"
         "3. **Fast-Path Detection**: If 'get_session_citations' returns NO results, it means this was a simple query handled by the fast-path. In this case, IGNORE the standard report format and provide a concise, direct answer to the user's question immediately.\n"
         "4. **Deep-Path Processing**: If research was conducted (citations exist):\n"
-        "   a. For specific technical points, use 'semantic_citation_lookup'.\n"
+        "   a. For specific technical points, use 'semantic_citation_lookup'. When you use findings from this tool, attribute them as '[RAG Vector Search]' in your report tables to indicate they were retrieved semantically from the conclave's knowledge base.\n"
         "   b. **CRITICAL: Chart Search**: Look specifically for citations with a source_url containing '.png' or 'storage.googleapis.com'. These are generated charts. You MUST include them.\n"
         "   c. Produce the final report matching this format:\n\n"
         "## Model Council Synthesis Report\n\n"
