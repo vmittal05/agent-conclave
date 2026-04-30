@@ -23,7 +23,7 @@ DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
 genai_client = genai.Client(
     vertexai=True, 
     project=os.getenv("GCP_PROJECT_ID"), 
-    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
 @traceable(run_type="tool", name="Synth_GetCitations")
@@ -64,10 +64,10 @@ async def semantic_citation_lookup(session_id: str, query: str) -> List[Dict[str
         logger.error(f"Semantic Search Error: {e}")
         return []
 
-# Synthesizer Agent: Gemini 2.5 Pro
+# Synthesizer Agent: Gemini 3.1 Pro
 SynthesizerAgent = Agent(
     name="SynthesizerAgent",
-    model="gemini-2.5-pro",
+    model="gemini-3.1-pro-preview",
     description="Synthesizes research findings into a grounded report.",
     instruction=(
         "You are the Council Synthesizer. Your goal is to produce a 'Model Conclave Research Synthesis Report'.\n\n"

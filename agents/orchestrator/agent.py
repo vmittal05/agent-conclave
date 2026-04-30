@@ -25,7 +25,7 @@ REGISTRY_URL = os.getenv("AGENT_REGISTRY_URL", "http://localhost:8012")
 genai_client = genai.Client(
     vertexai=True, 
     project=os.getenv("GCP_PROJECT_ID"), 
-    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
 # --- Helper Agents ---
@@ -54,7 +54,7 @@ class RouterAgent(BaseAgent):
         
         try:
             response = genai_client.models.generate_content(
-                model="gemini-2.5-flash-lite",
+                model="gemini-3.1-flash-lite-preview",
                 contents=prompt
             )
             decision = response.text.strip().upper()
@@ -146,12 +146,17 @@ class DynamicParallelResearch(BaseAgent):
 class PersonaBroadcaster(BaseAgent):
     """Enriches the user prompt with persona-specific research instructions."""
     _instruction: str = PrivateAttr()
-    def __init__(self, name, instruction):
+    _skip_on_fastpath: bool = PrivateAttr()
+    def __init__(self, name, instruction, skip_on_fastpath=False):
         super().__init__(name=name)
         self._instruction = instruction
+        self._skip_on_fastpath = skip_on_fastpath
 
     @traceable(run_type="chain", name="Orchestrator_PersonaRephraser")
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        if self._skip_on_fastpath and ctx.session.state.get("skip_research"):
+            return
+
         original_prompt = ""
         for event in ctx.session.events:
             if event.author == "user" and event.content and event.content.parts:
@@ -185,6 +190,24 @@ class StageNotifier(BaseAgent):
             actions=EventActions(skip_summarization=True)
         )
 
+class ConditionalRemoteAgent(BaseAgent):
+    """Wraps a RemoteA2aAgent to support conditional execution based on session state."""
+    _remote_agent: RemoteA2aAgent = PrivateAttr()
+    _condition_key: str = PrivateAttr()
+
+    def __init__(self, name, remote_agent: RemoteA2aAgent, condition_key: str = "skip_research"):
+        super().__init__(name=name)
+        self._remote_agent = remote_agent
+        self._condition_key = condition_key
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        if ctx.session.state.get(self._condition_key):
+            logger.info(f"Skipping {self._remote_agent.name} due to {self._condition_key}=True")
+            return
+
+        async for event in self._remote_agent.run_async(ctx):
+            yield event
+
 # --- Orchestration ---
 
 # The Root Pipeline is now truly dynamic and traced
@@ -201,11 +224,14 @@ root_agent = SequentialAgent(
         DynamicParallelResearch(name="dynamic_research_hub"),
 
         StageNotifier("system_viz", "[Stage 3/4] Visualization: Analyzing data and generating charts...", skip_on_fastpath=True),
-        PersonaBroadcaster("viz_broadcaster", "Perform data analysis and generate visualizations based on gathered data for:"),
-        RemoteA2aAgent(
-            name="VisualizationAgent",
-            agent_card=os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"),
-            httpx_client=create_authenticated_client(os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"))
+        PersonaBroadcaster("viz_broadcaster", "Perform data analysis and generate visualizations based on gathered data for:", skip_on_fastpath=True),
+        ConditionalRemoteAgent(
+            name="viz_gatekeeper",
+            remote_agent=RemoteA2aAgent(
+                name="VisualizationAgent",
+                agent_card=os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"),
+                httpx_client=create_authenticated_client(os.environ.get("VIZ_AGENT_CARD_URL", "http://localhost:8006/a2a/agent/.well-known/agent-card.json"))
+            )
         ),
         
         StageNotifier("system_synth", "[Stage 4/4] Synthesis: Generating grounded final report..."),

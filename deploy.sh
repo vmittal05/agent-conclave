@@ -61,7 +61,7 @@ FS_MCP_URL=$(gcloud run services describe conclave-mcp-fs --region $REGION --for
 # --- 2. Research & Synthesizer Agents ---
 
 LANGSMITH_VARS="LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=agent-conclave"
-COMMON_AGENT_VARS="AGENT_REGISTRY_URL=$REGISTRY_URL,MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,MCP_CODE_SERVER_URL=$CODE_MCP_URL,MCP_FS_SERVER_URL=$FS_MCP_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS"
+COMMON_AGENT_VARS="AGENT_REGISTRY_URL=$REGISTRY_URL,MCP_DB_SERVER_URL=$DB_MCP_URL,MCP_SEARCH_SERVER_URL=$SEARCH_MCP_URL,MCP_CODE_SERVER_URL=$CODE_MCP_URL,MCP_FS_SERVER_URL=$FS_MCP_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS"
 
 deploy_agent() {
     local name=$1
@@ -88,7 +88,7 @@ AGENT_VIZ_URL=$(deploy_agent "conclave-agent-viz" "agents/viz_agent")
 echo "Deploying Orchestrator..."
 gcloud run deploy conclave-orchestrator \
     --source agents/orchestrator \
-    --set-env-vars "AGENT_REGISTRY_URL=$REGISTRY_URL,SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json,VIZ_AGENT_CARD_URL=$AGENT_VIZ_URL/a2a/agent/.well-known/agent-card.json,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
+    --set-env-vars "AGENT_REGISTRY_URL=$REGISTRY_URL,SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json,VIZ_AGENT_CARD_URL=$AGENT_VIZ_URL/a2a/agent/.well-known/agent-card.json,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
     --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
     --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT
 ORCHESTRATOR_URL=$(gcloud run services describe conclave-orchestrator --region $REGION --format='value(status.url)')
@@ -96,7 +96,7 @@ ORCHESTRATOR_URL=$(gcloud run services describe conclave-orchestrator --region $
 echo "Deploying Backend Gateway..."
 gcloud run deploy conclave-backend \
     --source . \
-    --set-env-vars "ORCHESTRATOR_URL=$ORCHESTRATOR_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
+    --set-env-vars "ORCHESTRATOR_URL=$ORCHESTRATOR_URL,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
     --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
     --region $REGION --service-account $SERVICE_ACCOUNT --allow-unauthenticated --timeout $TIMEOUT
 

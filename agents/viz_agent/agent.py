@@ -27,7 +27,7 @@ FS_URL = os.getenv("MCP_FS_SERVER_URL", "http://localhost:8014")
 genai_client = genai.Client(
     vertexai=True, 
     project=os.getenv("GCP_PROJECT_ID"), 
-    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
 # --- Viz Tools ---

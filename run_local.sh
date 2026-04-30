@@ -7,7 +7,7 @@ fuser -k 8001/tcp 8002/tcp 8003/tcp 8004/tcp 8005/tcp 8010/tcp 8011/tcp 8012/tcp
 # Set common environment variables
 export GCP_PROJECT_ID=$(gcloud config get-value project)
 export GOOGLE_CLOUD_PROJECT=$GCP_PROJECT_ID
-export GOOGLE_CLOUD_LOCATION="us-central1"
+export GOOGLE_CLOUD_LOCATION="global"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 export MOCK_MODE=${MOCK_MODE:-false}
 export GCS_BUCKET_NAME="conclave-assets-$GCP_PROJECT_ID"

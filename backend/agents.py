@@ -23,7 +23,7 @@ DB_URL = os.getenv("MCP_DB_SERVER_URL", "http://localhost:8010")
 genai_client = genai.Client(
     vertexai=True, 
     project=os.getenv("GCP_PROJECT_ID"), 
-    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
 # --- Common Research Tools ---
@@ -132,7 +132,7 @@ ResearchAgentA = Agent(
 
 ResearchAgentB = Agent(
     name="ResearchAgentB",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash-preview",
     instruction=(
         "You are an analytical researcher (Agent B). Focus on empirical evidence. "
         "Gather exactly 5 high-quality citations. Record every source using 'record_citation'."
@@ -142,7 +142,7 @@ ResearchAgentB = Agent(
 
 ResearchAgentC = Agent(
     name="ResearchAgentC",
-    model="gemini-2.5-flash",
+    model="gemini-3.1-pro-preview-customtools",
     instruction=(
         "You are a technical researcher (Agent C). Focus on documentation. "
         "Gather exactly 5 high-quality citations. Record every source using 'record_citation'."
@@ -152,7 +152,7 @@ ResearchAgentC = Agent(
 
 SynthesizerAgent = Agent(
     name="SynthesizerAgent",
-    model="gemini-2.5-pro",
+    model="gemini-3.1-pro-preview",
     instruction=(
         "You are the Council Synthesizer. Produce a grounded report. "
         "Use 'get_session_citations' and 'semantic_citation_lookup' for evidence."

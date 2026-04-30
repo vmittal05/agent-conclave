@@ -28,7 +28,7 @@ FS_URL = os.getenv("MCP_FS_SERVER_URL", "http://localhost:8014")
 genai_client = genai.Client(
     vertexai=True, 
     project=os.getenv("GCP_PROJECT_ID"), 
-    location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
 # --- Common Research Tools ---
@@ -64,7 +64,7 @@ async def record_citations_batch(
 
     db_session_id = session_id.strip()
     agent_name = "ResearchAgentB"
-    model_id = "gemini-2.5-flash"
+    model_id = "gemini-3-flash-preview"
 
     try:
         # 1. Generate embeddings for valid snippets first
@@ -136,10 +136,10 @@ RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
 ResearchAgentB = Agent(
     name="ResearchAgentB",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash-preview",
     description="An analytical researcher (Agent B).",
     instruction=(
-        "You are an analytical researcher (Agent B). Perform focused research using Gemini 2.5 Flash.\n"
+        "You are an analytical researcher (Agent B). Perform focused research using Gemini 3 Flash.\n"
         "1. Identify the SESSION_ID from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
         "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
         "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted SESSION_ID."
