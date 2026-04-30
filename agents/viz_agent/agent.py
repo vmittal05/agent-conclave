@@ -30,6 +30,7 @@ genai_client = genai.Client(
     location=os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 )
 
+
 # --- Viz Tools ---
 
 @traceable(run_type="tool", name="Viz_GetCitations")

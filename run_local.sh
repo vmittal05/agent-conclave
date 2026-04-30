@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Kill any existing processes on these ports
-echo "Stopping any existing processes on ports 8001-8005, 8010-8014, and 8080..."
-fuser -k 8001/tcp 8002/tcp 8003/tcp 8004/tcp 8005/tcp 8010/tcp 8011/tcp 8012/tcp 8013/tcp 8014/tcp 8080/tcp 2>/dev/null
+echo "Stopping any existing processes on ports 8001-8006, 8010-8014, and 8080..."
+fuser -k 8001/tcp 8002/tcp 8003/tcp 8004/tcp 8005/tcp 8006/tcp 8010/tcp 8011/tcp 8012/tcp 8013/tcp 8014/tcp 8080/tcp 2>/dev/null
 
 # Set common environment variables
 export GCP_PROJECT_ID=$(gcloud config get-value project)
@@ -109,5 +109,5 @@ echo "All agents, MCP servers, and backend started!"
 echo "Backend API: http://localhost:8080"
 echo "Press Ctrl+C to stop all processes."
 
-trap "kill $DB_MCP_PID $SEARCH_MCP_PID $REGISTRY_PID $CODE_PID $FS_PID $RESEARCH_A_PID $RESEARCH_B_PID $RESEARCH_C_PID $SYNTHESIZER_PID $ORCHESTRATOR_PID $BACKEND_PID; exit" INT
+trap "kill $DB_MCP_PID $SEARCH_MCP_PID $REGISTRY_PID $CODE_PID $FS_PID $RESEARCH_A_PID $RESEARCH_B_PID $RESEARCH_C_PID $SYNTHESIZER_PID $VIZ_PID $ORCHESTRATOR_PID $BACKEND_PID; exit" INT
 wait
