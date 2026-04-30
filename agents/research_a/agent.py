@@ -54,7 +54,6 @@ async def search_gcp_docs(query: str) -> List[Dict[str, Any]]:
 
 @traceable(run_type="tool", name="AgentA_RecordCitations")
 async def record_citations_batch(
-    tool_context: Any,
     session_id: str,
     citations: List[Dict[str, str]]
 ) -> str:
@@ -64,7 +63,7 @@ async def record_citations_batch(
 
     db_session_id = session_id.strip()
     agent_name = "ResearchAgentA"
-    model_id = "gemini-2.5-flash"
+    model_id = "gemini-3-flash-preview"
 
     try:
         # 1. Generate embeddings for valid snippets first
@@ -136,13 +135,14 @@ RESEARCH_TOOLS = [search_web, search_gcp_docs, record_citations_batch]
 
 ResearchAgentA = Agent(
     name="ResearchAgentA",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash-preview",
     description="An expert researcher (Agent A).",
     instruction=(
-        "You are an expert researcher (Agent A). Perform focused research using Gemini 2.5 Flash.\n"
+        "You are an expert researcher (Agent A). Perform focused research using Gemini 3 Flash.\n"
         "1. Identify the SESSION_ID from the user prompt (it follows the 'SESSION_ID: ' tag).\n"
-        "2. Gather exactly 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
-        "3. Use 'record_citations_batch' ONCE to save all 5 results using the extracted SESSION_ID."
+        "2. Gather UP TO 5 high-quality citations from the live web based on the 'QUESTION' tag.\n"
+        "3. If search fails or returns fewer than 5 results, proceed with what you have. Do not get stuck in a loop.\n"
+        "4. Use 'record_citations_batch' ONCE to save all results using the extracted SESSION_ID."
     ),
     tools=RESEARCH_TOOLS
 )
