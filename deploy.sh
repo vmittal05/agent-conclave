@@ -19,7 +19,9 @@ gcloud run deploy conclave-registry \
     --source . \
     --command "python" \
     --args "mcp_servers/registry_server.py" \
-    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT
+    --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID" \
+    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT \
+    --min-instances 1
 REGISTRY_URL=$(gcloud run services describe conclave-registry --region $REGION --format='value(status.url)')
 
 echo "Deploying Database MCP..."
@@ -70,7 +72,8 @@ deploy_agent() {
     gcloud run deploy $name --source $source \
         --set-env-vars "$COMMON_AGENT_VARS" \
         --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
-        --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT
+        --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT \
+        --min-instances 1
     local url=$(gcloud run services describe $name --region $REGION --format='value(status.url)')
     echo "Updating $name with PUBLIC_AGENT_URL=$url" >&2
     gcloud run services update $name --update-env-vars "PUBLIC_AGENT_URL=$url" --region $REGION
@@ -90,7 +93,8 @@ gcloud run deploy conclave-orchestrator \
     --source agents/orchestrator \
     --set-env-vars "AGENT_REGISTRY_URL=$REGISTRY_URL,SYNTHESIZER_AGENT_CARD_URL=$AGENT_SYNTH_URL/a2a/agent/.well-known/agent-card.json,VIZ_AGENT_CARD_URL=$AGENT_VIZ_URL/a2a/agent/.well-known/agent-card.json,GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=True,$LANGSMITH_VARS" \
     --set-secrets "LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
-    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT
+    --region $REGION --service-account $SERVICE_ACCOUNT --no-allow-unauthenticated --timeout $TIMEOUT \
+    --min-instances 1
 ORCHESTRATOR_URL=$(gcloud run services describe conclave-orchestrator --region $REGION --format='value(status.url)')
 
 echo "Deploying Backend Gateway..."

@@ -104,7 +104,9 @@ async def a2a_card_dispatch(
 
 
 async def register_agent_with_registry(agent_name: str, agent_port: int):
-    """Fetches the agent card and registers it with the central Registry Service."""
+    """Fetches the agent card and registers it with the central Registry Service.
+    Runs in a loop to ensure registration is maintained even if Registry restarts.
+    """
     import os
     import time
     registry_url = os.getenv("AGENT_REGISTRY_URL", "http://localhost:8012")
@@ -118,14 +120,14 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
         
     card_url = f"{agent_url}/.well-known/agent-card.json"
     
-    # Wait for the agent to actually be up
-    max_retries = 10
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        for i in range(max_retries):
-            try:
-                # 1. Fetch the Card - if we have a public URL, we might need to fetch from localhost:port still
-                # but the URL we REGISTER should be the public one.
-                internal_card_url = f"http://localhost:{agent_port}/a2a/{agent_name}/.well-known/agent-card.json"
+    print(f"Starting registration loop for {agent_name} targetting {registry_url}...")
+    
+    while True:
+        try:
+            # 1. Fetch the Card - if we have a public URL, we might need to fetch from localhost:port still
+            # but the URL we REGISTER should be the public one.
+            internal_card_url = f"http://localhost:{agent_port}/a2a/{agent_name}/.well-known/agent-card.json"
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(internal_card_url)
                 if response.status_code == 200:
                     card_data = response.json()
@@ -136,16 +138,16 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
                     async with create_authenticated_client(registry_url) as auth_client:
                         reg_response = await auth_client.post(f"{registry_url}/register", json=card_data)
                         if reg_response.status_code == 200:
-                            print(f"✅ Successfully registered {agent_name} with Registry at {agent_url}")
-                            return True
+                            print(f"✅ [{time.strftime('%H:%M:%S')}] Registered {agent_name} at {agent_url}")
                         else:
-                            print(f"⚠️ Registry registration failed ({reg_response.status_code}): {reg_response.text}")
-            except Exception as e:
-                print(f"Registration attempt {i+1} failed: {e}")
-            await asyncio.sleep(2)
-    
-    print(f"❌ Failed to register {agent_name} after {max_retries} attempts.")
-    return False
+                            print(f"⚠️ [{time.strftime('%H:%M:%S')}] Registry registration failed ({reg_response.status_code}): {reg_response.text}")
+                else:
+                    print(f"⚠️ [{time.strftime('%H:%M:%S')}] Failed to fetch internal card: {response.status_code}")
+        except Exception as e:
+            print(f"⚠️ [{time.strftime('%H:%M:%S')}] Registration error: {e}")
+        
+        # Re-register every 2 minutes to ensure presence in Registry
+        await asyncio.sleep(120)
 
 
 def create_authenticated_client(

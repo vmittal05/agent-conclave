@@ -54,6 +54,12 @@
             </div>
         </div>
 
+        <!-- Result Section moved ABOVE Trace for better focus -->
+        <div id="resultSection" class="result-section hidden">
+            <div id="markdownResult"></div>
+            <button id="newQueryBtn">New Research Question</button>
+        </div>
+
         <div id="traceSection" class="trace-section hidden">
             <div class="trace-header" id="traceHeader">
                 <h3>🔍 Reasoning Trace (Real-time Insights)</h3>
@@ -62,10 +68,6 @@
             <div id="traceLog" class="trace-log"></div>
         </div>
 
-        <div id="resultSection" class="result-section hidden">
-            <div id="markdownResult"></div>
-            <button id="newQueryBtn">New Research Question</button>
-        </div>
     </div>
     <script src="app.js"></script>
 </body>
