@@ -118,10 +118,9 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
     else:
         agent_url = f"http://localhost:{agent_port}/a2a/{agent_name}"
         
-    card_url = f"{agent_url}/.well-known/agent-card.json"
-    
     print(f"Starting registration loop for {agent_name} targetting {registry_url}...")
     
+    initial_success = False
     while True:
         try:
             # 1. Fetch the Card - if we have a public URL, we might need to fetch from localhost:port still
@@ -139,15 +138,20 @@ async def register_agent_with_registry(agent_name: str, agent_port: int):
                         reg_response = await auth_client.post(f"{registry_url}/register", json=card_data)
                         if reg_response.status_code == 200:
                             print(f"✅ [{time.strftime('%H:%M:%S')}] Registered {agent_name} at {agent_url}")
+                            initial_success = True
                         else:
                             print(f"⚠️ [{time.strftime('%H:%M:%S')}] Registry registration failed ({reg_response.status_code}): {reg_response.text}")
                 else:
                     print(f"⚠️ [{time.strftime('%H:%M:%S')}] Failed to fetch internal card: {response.status_code}")
         except Exception as e:
-            print(f"⚠️ [{time.strftime('%H:%M:%S')}] Registration error: {e}")
+            # Silent during initial boot if server not up yet
+            if initial_success:
+                print(f"⚠️ [{time.strftime('%H:%M:%S')}] Registration maintenance error: {e}")
         
-        # Re-register every 2 minutes to ensure presence in Registry
-        await asyncio.sleep(120)
+        # If we haven't succeeded once yet, retry quickly (every 5 seconds)
+        # Once we've succeeded once, switch to long-term maintenance (every 2 minutes)
+        sleep_time = 120 if initial_success else 5
+        await asyncio.sleep(sleep_time)
 
 
 def create_authenticated_client(
